@@ -13,6 +13,8 @@ import { preloadAssetSet } from '../utils/preload';
 import type { AssetAvailability, AvailabilityMap, BaseKey, CameraKey, Configuration, ShadeKey, StateKey } from '../types/configurator';
 import { CONFIGURATOR_VERSION, DEFAULT_STATE, VARIANT_ID } from '../config';
 
+const EMPTY_STATE_MAP: Record<StateKey, AssetAvailability | undefined> = { on: undefined, off: undefined };
+
 interface CartPayload {
   id: string;
   quantity: number;
@@ -164,7 +166,7 @@ export default function Configurator() {
     const firstShade = (Object.keys(shades) as ShadeKey[])[0];
     const firstCamera = firstShade ? (Object.keys(shades[firstShade] ?? {}) as CameraKey[])[0] : undefined;
     if (!firstShade || !firstCamera) return undefined;
-    const states = availability.bases[base]?.shades?.[firstShade]?.[firstCamera]?.states ?? {};
+    const states = availability.bases[base]?.shades?.[firstShade]?.[firstCamera]?.states ?? EMPTY_STATE_MAP;
     const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
     const asset = firstState ? states[firstState] : undefined;
     const fallbackState = firstState ?? DEFAULT_STATE;
@@ -175,7 +177,7 @@ export default function Configurator() {
     const cameras = availability.bases[configuration.base]?.shades?.[shade] ?? {};
     const firstCamera = (Object.keys(cameras) as CameraKey[])[0];
     if (!firstCamera) return undefined;
-    const states = availability.bases[configuration.base]?.shades?.[shade]?.[firstCamera]?.states ?? {};
+    const states = availability.bases[configuration.base]?.shades?.[shade]?.[firstCamera]?.states ?? EMPTY_STATE_MAP;
     const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
     const asset = firstState ? states[firstState] : undefined;
     const fallbackState = firstState ?? DEFAULT_STATE;
