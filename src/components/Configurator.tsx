@@ -8,6 +8,7 @@ import {
   getAvailableShades,
   getAvailableStates,
   pickFirstAvailableConfiguration,
+  probeAvailability,
   resolveAssetUrls
 } from '../utils/assetResolver';
 import { colorsForPart, findColorById, normalizeColorSelection } from '../colors';
@@ -32,6 +33,8 @@ const COLOR_KEYS: Record<ColorPart, 'lampColor' | 'baseColor' | 'adapterColor' |
   guard: 'guardColor'
 };
 const SHOPIFY_HOST_PATTERN = /(?:myshopify\.com|shopify\.com)$/;
+
+type RenderPass = 'beauty' | 'ao' | 'normal' | 'emission';
 
 interface CartPayload {
   id: string;
@@ -138,6 +141,8 @@ export default function Configurator() {
   const [isLoadingImage, setIsLoadingImage] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
+  const [renderPass, setRenderPass] = useState<RenderPass>('beauty');
   const [isShopifyHost] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     return SHOPIFY_HOST_PATTERN.test(window.location.hostname);
@@ -183,20 +188,16 @@ export default function Configurator() {
     }
   }, [configuration.state, renderPass]);
 
-  const baseOptions = useMemo(() => AVAILABLE_BASES as BaseKey[], []);
-  const shadeOptions = useMemo(() => AVAILABLE_SHADES as ShadeKey[], []);
-  const cameraOptions = useMemo(() => [...AVAILABLE_CAMERAS] as CameraKey[], []);
-  const stateOptions = useMemo(() => [...AVAILABLE_STATES] as StateKey[], []);
-
-  const handleColorSelect = (part: ColorPart, id: string) => {
-    setConfiguration((prev) => coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: id } as Configuration));
-  };
-
-  const handleColorClear = (part: ColorPart) => {
-    setConfiguration((prev) =>
-      coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: normalizeColorSelection('', part) } as Configuration)
-    );
-  };
+  const baseOptions = useMemo(() => getAvailableBases(availability), [availability]);
+  const shadeOptions = useMemo(() => getAvailableShades(availability, configuration.base), [availability, configuration.base]);
+  const cameraOptions = useMemo(
+    () => getAvailableCameras(availability, configuration.base, configuration.shade),
+    [availability, configuration.base, configuration.shade]
+  );
+  const stateOptions = useMemo(
+    () => getAvailableStates(availability, configuration.base, configuration.shade, configuration.camera),
+    [availability, configuration.base, configuration.shade, configuration.camera]
+  );
 
   const handleColorSelect = (part: ColorPart, id: string) => {
     setConfiguration((prev) => coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: id } as Configuration));
@@ -308,8 +309,6 @@ export default function Configurator() {
   useEffect(() => {
     setIsLoadingImage(true);
   }, [displayedUrl]);
-
-  const selectedColorId = configuration[COLOR_KEYS[colorTab]];
 
   return (
     <div>
