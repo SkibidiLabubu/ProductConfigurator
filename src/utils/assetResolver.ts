@@ -1,15 +1,6 @@
 import { AVAILABLE_BASES, AVAILABLE_CAMERAS, AVAILABLE_SHADES, AVAILABLE_STATES, CDN_ROOT, DEFAULT_CAMERA, DEFAULT_STATE } from '../config';
 import { getDefaultColors } from '../colors';
-import type {
-  AssetAvailability,
-  AssetUrls,
-  AvailabilityMap,
-  BaseKey,
-  CameraKey,
-  Configuration,
-  ShadeKey,
-  StateKey
-} from '../types/configurator';
+import type { AssetAvailability, AssetUrls, AvailabilityMap, BaseKey, CameraKey, Configuration, ShadeKey, StateKey } from '../types/configurator';
 
 const probeCache = new Map<string, Promise<boolean>>();
 
@@ -23,8 +14,16 @@ function buildBasePath(config: Configuration, root = CDN_ROOT) {
   return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}/lamp_${config.lampColor}/base_${config.baseColor}/adapter_${config.adapterColor}/guard_${config.guardColor}`;
 }
 
-function buildAssetPath(basePath: string, filename: string, extension: 'webp' | 'png' = 'webp') {
-  return `${basePath}/${filename}.${extension}`;
+export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
+  // TODO: incorporate lamp/base/adapter/guard color variants when colorized assets land.
+  const basePath = buildBasePath(config, root);
+  return {
+    beautyUrl: `${basePath}/beauty.webp`,
+    thumbUrl: `${basePath}/beauty_512.webp`,
+    aoUrl: `${basePath}/ao.webp`,
+    normalUrl: `${basePath}/normal.webp`,
+    emissionUrl: config.state === 'on' ? `${basePath}/emission.webp` : undefined
+  };
 }
 
 async function headExists(url: string): Promise<boolean> {

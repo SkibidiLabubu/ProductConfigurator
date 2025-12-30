@@ -4,7 +4,6 @@ export type CameraKey = 'CAM_01' | 'CAM_02' | 'CAM_03';
 export type StateKey = 'on' | 'off';
 export type ColorId = string;
 export type ColorPart = 'lamp' | 'base' | 'adapter' | 'guard';
-export type RenderPass = 'beauty' | 'ao' | 'normal' | 'emission';
 
 export interface Configuration {
   base: BaseKey;

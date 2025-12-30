@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import ColorSwatchGrid from './ColorSwatchGrid';
-import { buildStaticManifest, pickFirstAvailableConfiguration, probeAvailability, resolveAssetUrls } from '../utils/assetResolver';
+import {
+  buildAvailabilityMap,
+  buildStaticManifest,
+  getAvailableBases,
+  getAvailableCameras,
+  getAvailableShades,
+  getAvailableStates,
+  pickFirstAvailableConfiguration,
+  resolveAssetUrls
+} from '../utils/assetResolver';
 import { colorsForPart, findColorById, normalizeColorSelection } from '../colors';
 import { preloadAssetSet } from '../utils/preload';
 import type {
@@ -10,12 +19,12 @@ import type {
   CameraKey,
   ColorPart,
   Configuration,
-  RenderPass,
   ShadeKey,
   StateKey
 } from '../types/configurator';
-import { AVAILABLE_BASES, AVAILABLE_CAMERAS, AVAILABLE_SHADES, AVAILABLE_STATES, CONFIGURATOR_VERSION, DEFAULT_STATE, VARIANT_ID } from '../config';
+import { CONFIGURATOR_VERSION, DEFAULT_STATE, VARIANT_ID } from '../config';
 
+const EMPTY_STATE_MAP: Record<StateKey, AssetAvailability | undefined> = { on: undefined, off: undefined };
 const COLOR_KEYS: Record<ColorPart, 'lampColor' | 'baseColor' | 'adapterColor' | 'guardColor'> = {
   lamp: 'lampColor',
   base: 'baseColor',
@@ -30,11 +39,19 @@ interface CartPayload {
   properties: Record<string, string>;
 }
 
-function coerceConfig(_map: AvailabilityMap, current: Configuration): Configuration {
-  const base = AVAILABLE_BASES.includes(current.base) ? current.base : (AVAILABLE_BASES[0] as BaseKey);
-  const shade = AVAILABLE_SHADES.includes(current.shade) ? current.shade : (AVAILABLE_SHADES[0] as ShadeKey);
-  const camera = AVAILABLE_CAMERAS.includes(current.camera) ? current.camera : (AVAILABLE_CAMERAS[0] as CameraKey);
-  const state = AVAILABLE_STATES.includes(current.state) ? current.state : DEFAULT_STATE;
+function findAsset(map: AvailabilityMap, config: Configuration): AssetAvailability | undefined {
+  return map.bases[config.base]?.shades?.[config.shade]?.[config.camera]?.states?.[config.state];
+}
+
+function coerceConfig(map: AvailabilityMap, current: Configuration): Configuration {
+  const bases = getAvailableBases(map);
+  const base = bases.includes(current.base) ? current.base : bases[0];
+  const shades = base ? getAvailableShades(map, base) : [];
+  const shade = shades.includes(current.shade) ? current.shade : shades[0];
+  const cameras = base && shade ? getAvailableCameras(map, base, shade) : [];
+  const camera = cameras.includes(current.camera) ? current.camera : cameras[0];
+  const states = base && shade && camera ? getAvailableStates(map, base, shade, camera) : [];
+  const state = states.includes(current.state) ? current.state : states[0] ?? DEFAULT_STATE;
   const lampColor = normalizeColorSelection(current.lampColor, 'lamp');
   const baseColor = normalizeColorSelection(current.baseColor, 'base');
   const adapterColor = normalizeColorSelection(current.adapterColor, 'adapter');
@@ -117,12 +134,10 @@ export default function Configurator() {
   const [availability, setAvailability] = useState<AvailabilityMap>(() => buildStaticManifest());
   const [configuration, setConfiguration] = useState<Configuration>(() => pickFirstAvailableConfiguration(buildStaticManifest()));
   const [colorTab, setColorTab] = useState<ColorPart>('lamp');
-  const [renderPass, setRenderPass] = useState<RenderPass>('beauty');
   const [currentAsset, setCurrentAsset] = useState<AssetAvailability | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
   const [isShopifyHost] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     return SHOPIFY_HOST_PATTERN.test(window.location.hostname);
@@ -183,19 +198,47 @@ export default function Configurator() {
     );
   };
 
+  const handleColorSelect = (part: ColorPart, id: string) => {
+    setConfiguration((prev) => coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: id } as Configuration));
+  };
+
+  const handleColorClear = (part: ColorPart) => {
+    setConfiguration((prev) =>
+      coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: normalizeColorSelection('', part) } as Configuration)
+    );
+  };
+
   const baseThumbnail = (base: BaseKey) => {
-    return resolveAssetUrls({ ...configuration, base }).thumbUrl;
+    const shades = availability.bases[base]?.shades ?? {};
+    const firstShade = (Object.keys(shades) as ShadeKey[])[0];
+    const firstCamera = firstShade ? (Object.keys(shades[firstShade] ?? {}) as CameraKey[])[0] : undefined;
+    if (!firstShade || !firstCamera) return undefined;
+    const states = availability.bases[base]?.shades?.[firstShade]?.[firstCamera]?.states ?? EMPTY_STATE_MAP;
+    const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
+    const asset = firstState ? states[firstState] : undefined;
+    const fallbackState = firstState ?? DEFAULT_STATE;
+    return (
+      asset?.thumbUrl ??
+      resolveAssetUrls({ ...configuration, base, shade: firstShade, camera: firstCamera, state: fallbackState }).thumbUrl
+    );
   };
 
   const shadeThumbnail = (shade: ShadeKey) => {
-    return resolveAssetUrls({ ...configuration, shade }).thumbUrl;
+    const cameras = availability.bases[configuration.base]?.shades?.[shade] ?? {};
+    const firstCamera = (Object.keys(cameras) as CameraKey[])[0];
+    if (!firstCamera) return undefined;
+    const states = availability.bases[configuration.base]?.shades?.[shade]?.[firstCamera]?.states ?? EMPTY_STATE_MAP;
+    const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
+    const asset = firstState ? states[firstState] : undefined;
+    const fallbackState = firstState ?? DEFAULT_STATE;
+    return (
+      asset?.thumbUrl ??
+      resolveAssetUrls({ ...configuration, shade, camera: firstCamera, state: fallbackState }).thumbUrl
+    );
   };
 
   const handleAddToCart = async () => {
-    if (!currentAsset || !currentAsset.exists) {
-      setStatusMessage('Combination not available');
-      return;
-    }
+    if (!currentAsset) return;
     if (!isShopifyHost) {
       setStatusMessage('Add to cart is disabled in preview mode.');
       return;
@@ -265,6 +308,8 @@ export default function Configurator() {
   useEffect(() => {
     setIsLoadingImage(true);
   }, [displayedUrl]);
+
+  const selectedColorId = configuration[COLOR_KEYS[colorTab]];
 
   return (
     <div>
@@ -365,11 +410,7 @@ export default function Configurator() {
           </div>
 
           <div className="section" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              className="button"
-              onClick={handleAddToCart}
-              disabled={isAdding || !currentAsset?.exists || !isShopifyHost}
-            >
+            <button className="button" onClick={handleAddToCart} disabled={isAdding || !currentAsset || !isShopifyHost}>
               {isAdding ? 'Toevoegen…' : 'Add to cart'}
             </button>
             {!isShopifyHost && (
