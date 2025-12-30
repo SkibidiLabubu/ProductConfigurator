@@ -2,14 +2,6 @@ import type { AssetUrls, ColorOption } from '../types/configurator';
 
 const bitmapCache = new Map<string, Promise<ImageBitmap | null>>();
 
-async function fetchFirstBitmap(urls: Array<string | undefined>) {
-  for (const url of urls) {
-    const bitmap = await fetchBitmap(url);
-    if (bitmap) return bitmap;
-  }
-  return null;
-}
-
 function hexToRgb(hex?: string): [number, number, number] | null {
   if (!hex) return null;
   const normalized = hex.replace('#', '');
