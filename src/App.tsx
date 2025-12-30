@@ -2,7 +2,7 @@ import Configurator from './components/Configurator';
 
 function App() {
   return (
-    <div className="layout">
+    <div className="leah-configurator">
       <Configurator />
     </div>
   );

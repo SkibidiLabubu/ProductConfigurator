@@ -2,12 +2,18 @@ export type BaseKey = `base_${string}`;
 export type ShadeKey = `shade_${string}`;
 export type CameraKey = 'CAM_01' | 'CAM_02' | 'CAM_03';
 export type StateKey = 'on' | 'off';
+export type ColorId = string;
+export type ColorPart = 'lamp' | 'base' | 'adapter' | 'guard';
 
 export interface Configuration {
   base: BaseKey;
   shade: ShadeKey;
   camera: CameraKey;
   state: StateKey;
+  lampColor: ColorId;
+  baseColor: ColorId;
+  adapterColor: ColorId;
+  guardColor: ColorId;
 }
 
 export interface AssetUrls {
@@ -32,4 +38,15 @@ export interface ShadeAvailability {
 
 export interface AvailabilityMap {
   bases: Record<BaseKey, ShadeAvailability | undefined>;
+}
+
+export interface ColorOption {
+  id: ColorId;
+  name: string;
+  hex: string;
+  finish: string;
+  forBase: boolean;
+  forShade: boolean;
+  forAdapter: boolean;
+  forGuard: boolean;
 }
