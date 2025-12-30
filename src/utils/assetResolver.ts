@@ -27,8 +27,24 @@ function buildBackgroundPath(camera: CameraKey, root = CDN_ROOT) {
   return `${root}/background/${camera}`;
 }
 
-function buildAssetPath(basePath: string, filename: string, extension: 'webp' | 'png' = 'webp') {
+function buildAssetPath(basePath: string, filename: string, extension: 'webp' | 'png' = 'webp', frameSuffix = '') {
+  if (frameSuffix) {
+    return `${basePath}/${filename}.${extension}${frameSuffix}.${extension}`;
+  }
   return `${basePath}/${filename}.${extension}`;
+}
+
+function buildAssetCandidates(basePath: string, filename: string) {
+  const extensions: Array<'webp' | 'png'> = ['webp', 'png'];
+  const frameSuffixes = ['0001', ''];
+
+  return extensions.flatMap((extension) =>
+    frameSuffixes.map((frameSuffix) => buildAssetPath(basePath, filename, extension, frameSuffix))
+  );
+}
+
+function pickPrimaryAssetCandidate(basePath: string, filename: string) {
+  return buildAssetCandidates(basePath, filename)[0];
 }
 
 async function headExists(url: string): Promise<boolean> {
@@ -44,14 +60,15 @@ async function headExists(url: string): Promise<boolean> {
 }
 
 async function withExtensionFallback(basePath: string, filename: string) {
-  const webp = buildAssetPath(basePath, filename, 'webp');
-  const webpOk = await headExists(webp);
-  if (webpOk) {
-    return { url: webp, exists: true } as const;
+  const candidates = buildAssetCandidates(basePath, filename);
+
+  for (const candidate of candidates) {
+    if (await headExists(candidate)) {
+      return { url: candidate, exists: true } as const;
+    }
   }
-  const png = buildAssetPath(basePath, filename, 'png');
-  const pngOk = await headExists(png);
-  return { url: png, exists: pngOk } as const;
+
+  return { url: candidates[0], exists: false } as const;
 }
 
 export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
@@ -59,16 +76,16 @@ export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetU
   const backgroundPath = buildBackgroundPath(config.camera, root);
   return {
     variant: undefined,
-    beautyUrl: buildAssetPath(basePath, 'beauty'),
-    beautyFgUrl: buildAssetPath(basePath, 'beauty_fg'),
-    backgroundUrl: buildAssetPath(backgroundPath, 'bg'),
-    thumbUrl: buildAssetPath(basePath, 'beauty_512'),
-    aoUrl: buildAssetPath(basePath, 'ao'),
-    emissionUrl: config.state === 'on' ? buildAssetPath(basePath, 'emission') : undefined,
-    maskBaseUrl: buildAssetPath(basePath, 'mask_base'),
-    maskShadeUrl: buildAssetPath(basePath, 'mask_shade'),
-    maskAdapterUrl: buildAssetPath(basePath, 'mask_adapter'),
-    maskGuardUrl: buildAssetPath(basePath, 'mask_guard')
+    beautyUrl: pickPrimaryAssetCandidate(basePath, 'beauty'),
+    beautyFgUrl: pickPrimaryAssetCandidate(basePath, 'beauty_fg'),
+    backgroundUrl: pickPrimaryAssetCandidate(backgroundPath, 'bg'),
+    thumbUrl: pickPrimaryAssetCandidate(basePath, 'beauty_512'),
+    aoUrl: pickPrimaryAssetCandidate(basePath, 'ao'),
+    emissionUrl: config.state === 'on' ? pickPrimaryAssetCandidate(basePath, 'emission') : undefined,
+    maskBaseUrl: pickPrimaryAssetCandidate(basePath, 'mask_base'),
+    maskShadeUrl: pickPrimaryAssetCandidate(basePath, 'mask_shade'),
+    maskAdapterUrl: pickPrimaryAssetCandidate(basePath, 'mask_adapter'),
+    maskGuardUrl: pickPrimaryAssetCandidate(basePath, 'mask_guard')
   };
 }
 
