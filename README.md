@@ -27,6 +27,9 @@ unavailable options automatically.
    npm run build
    ```
 
+> Netlify tip: the build stack currently installs Node 22 and npm 10. Use the pinned dev dependency versions in
+> `package.json` (Vite 5.4.x + @vitejs/plugin-react 4.3.x) to avoid npm install errors on the platform.
+
 `CDN_ROOT` defaults to `/renders`, which works against the dev assets included in `public/renders`. Point it to your CDN base
 URL for production.
 
