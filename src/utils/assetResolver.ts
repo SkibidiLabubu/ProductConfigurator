@@ -3,6 +3,8 @@ import type { AssetAvailability, AssetUrls, AvailabilityMap, BaseKey, CameraKey,
 
 const probeCache = new Map<string, Promise<boolean>>();
 
+const EMPTY_STATE_MAP: Record<StateKey, AssetAvailability | undefined> = { on: undefined, off: undefined };
+
 const STATES: StateKey[] = [...AVAILABLE_STATES];
 const CAMERAS: CameraKey[] = [...AVAILABLE_CAMERAS];
 
@@ -118,7 +120,7 @@ export function pickFirstAvailableConfiguration(map: AvailabilityMap): Configura
     for (const shade of Object.keys(shades)) {
       const cameras = shades[shade as ShadeKey] ?? {};
       for (const camera of Object.keys(cameras)) {
-        const states = cameras[camera as CameraKey]?.states ?? {};
+        const states = cameras[camera as CameraKey]?.states ?? EMPTY_STATE_MAP;
         const existingState = (Object.keys(states) as StateKey[]).find((state) => states[state]?.exists);
         if (existingState) {
           return {
@@ -155,6 +157,6 @@ export function getAvailableCameras(map: AvailabilityMap, base: BaseKey, shade: 
 }
 
 export function getAvailableStates(map: AvailabilityMap, base: BaseKey, shade: ShadeKey, camera: CameraKey): StateKey[] {
-  const states = map.bases[base]?.shades?.[shade]?.[camera]?.states ?? {};
+  const states = map.bases[base]?.shades?.[shade]?.[camera]?.states ?? EMPTY_STATE_MAP;
   return (Object.keys(states) as StateKey[]).filter((key) => states[key]);
 }
