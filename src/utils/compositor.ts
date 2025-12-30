@@ -1,6 +1,6 @@
 import type { AssetUrls, ColorOption } from '../types/configurator';
 
-const bitmapCache = new Map<string, Promise<ImageBitmap>>();
+const bitmapCache = new Map<string, Promise<ImageBitmap | null>>();
 
 function hexToRgb(hex?: string): [number, number, number] | null {
   if (!hex) return null;
@@ -22,7 +22,11 @@ async function fetchBitmap(url?: string): Promise<ImageBitmap | null> {
       if (!res.ok) throw new Error('Asset fetch failed');
       return res.blob();
     })
-    .then((blob) => createImageBitmap(blob));
+    .then((blob) => createImageBitmap(blob))
+    .catch((error) => {
+      console.error('Failed to fetch bitmap', url, error);
+      return null;
+    });
   bitmapCache.set(url, promise);
   return promise;
 }
