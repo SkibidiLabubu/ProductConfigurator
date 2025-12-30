@@ -14,16 +14,8 @@ function buildBasePath(config: Configuration, root = CDN_ROOT) {
   return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}/lamp_${config.lampColor}/base_${config.baseColor}/adapter_${config.adapterColor}/guard_${config.guardColor}`;
 }
 
-export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
-  // TODO: incorporate lamp/base/adapter/guard color variants when colorized assets land.
-  const basePath = buildBasePath(config, root);
-  return {
-    beautyUrl: `${basePath}/beauty.webp`,
-    thumbUrl: `${basePath}/beauty_512.webp`,
-    aoUrl: `${basePath}/ao.webp`,
-    normalUrl: `${basePath}/normal.webp`,
-    emissionUrl: config.state === 'on' ? `${basePath}/emission.webp` : undefined
-  };
+function buildAssetPath(basePath: string, filename: string, extension: 'webp' | 'png' = 'webp') {
+  return `${basePath}/${filename}.${extension}`;
 }
 
 async function headExists(url: string): Promise<boolean> {
