@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import ColorSwatchGrid from './ColorSwatchGrid';
 import {
   buildAvailabilityMap,
   buildStaticManifest,
@@ -9,11 +10,28 @@ import {
   pickFirstAvailableConfiguration,
   resolveAssetUrls
 } from '../utils/assetResolver';
+import { colorsForPart, findColorById, normalizeColorSelection } from '../colors';
 import { preloadAssetSet } from '../utils/preload';
-import type { AssetAvailability, AvailabilityMap, BaseKey, CameraKey, Configuration, ShadeKey, StateKey } from '../types/configurator';
+import type {
+  AssetAvailability,
+  AvailabilityMap,
+  BaseKey,
+  CameraKey,
+  ColorPart,
+  Configuration,
+  ShadeKey,
+  StateKey
+} from '../types/configurator';
 import { CONFIGURATOR_VERSION, DEFAULT_STATE, VARIANT_ID } from '../config';
 
 const EMPTY_STATE_MAP: Record<StateKey, AssetAvailability | undefined> = { on: undefined, off: undefined };
+const COLOR_KEYS: Record<ColorPart, 'lampColor' | 'baseColor' | 'adapterColor' | 'guardColor'> = {
+  lamp: 'lampColor',
+  base: 'baseColor',
+  adapter: 'adapterColor',
+  guard: 'guardColor'
+};
+const SHOPIFY_HOST_PATTERN = /(?:myshopify\.com|shopify\.com)$/;
 
 interface CartPayload {
   id: string;
@@ -34,12 +52,20 @@ function coerceConfig(map: AvailabilityMap, current: Configuration): Configurati
   const camera = cameras.includes(current.camera) ? current.camera : cameras[0];
   const states = base && shade && camera ? getAvailableStates(map, base, shade, camera) : [];
   const state = states.includes(current.state) ? current.state : states[0] ?? DEFAULT_STATE;
+  const lampColor = normalizeColorSelection(current.lampColor, 'lamp');
+  const baseColor = normalizeColorSelection(current.baseColor, 'base');
+  const adapterColor = normalizeColorSelection(current.adapterColor, 'adapter');
+  const guardColor = normalizeColorSelection(current.guardColor, 'guard');
 
   return {
     base: base ?? current.base,
     shade: shade ?? current.shade,
     camera: camera ?? current.camera,
-    state: state ?? current.state
+    state: state ?? current.state,
+    lampColor,
+    baseColor,
+    adapterColor,
+    guardColor
   };
 }
 
@@ -107,10 +133,24 @@ function SegmentedControl({
 export default function Configurator() {
   const [availability, setAvailability] = useState<AvailabilityMap>(() => buildStaticManifest());
   const [configuration, setConfiguration] = useState<Configuration>(() => pickFirstAvailableConfiguration(buildStaticManifest()));
+  const [colorTab, setColorTab] = useState<ColorPart>('lamp');
   const [currentAsset, setCurrentAsset] = useState<AssetAvailability | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isShopifyHost] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return SHOPIFY_HOST_PATTERN.test(window.location.hostname);
+  });
+  const colorOptions = useMemo(
+    () => ({
+      lamp: colorsForPart('lamp'),
+      base: colorsForPart('base'),
+      adapter: colorsForPart('adapter'),
+      guard: colorsForPart('guard')
+    }),
+    []
+  );
 
   useEffect(() => {
     let active = true;
@@ -161,6 +201,16 @@ export default function Configurator() {
     [availability, configuration.base, configuration.shade, configuration.camera]
   );
 
+  const handleColorSelect = (part: ColorPart, id: string) => {
+    setConfiguration((prev) => coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: id } as Configuration));
+  };
+
+  const handleColorClear = (part: ColorPart) => {
+    setConfiguration((prev) =>
+      coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: normalizeColorSelection('', part) } as Configuration)
+    );
+  };
+
   const baseThumbnail = (base: BaseKey) => {
     const shades = availability.bases[base]?.shades ?? {};
     const firstShade = (Object.keys(shades) as ShadeKey[])[0];
@@ -170,7 +220,10 @@ export default function Configurator() {
     const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
     const asset = firstState ? states[firstState] : undefined;
     const fallbackState = firstState ?? DEFAULT_STATE;
-    return asset?.thumbUrl ?? resolveAssetUrls({ base, shade: firstShade, camera: firstCamera, state: fallbackState }).thumbUrl;
+    return (
+      asset?.thumbUrl ??
+      resolveAssetUrls({ ...configuration, base, shade: firstShade, camera: firstCamera, state: fallbackState }).thumbUrl
+    );
   };
 
   const shadeThumbnail = (shade: ShadeKey) => {
@@ -181,13 +234,24 @@ export default function Configurator() {
     const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
     const asset = firstState ? states[firstState] : undefined;
     const fallbackState = firstState ?? DEFAULT_STATE;
-    return asset?.thumbUrl ?? resolveAssetUrls({ base: configuration.base, shade, camera: firstCamera, state: fallbackState }).thumbUrl;
+    return (
+      asset?.thumbUrl ??
+      resolveAssetUrls({ ...configuration, shade, camera: firstCamera, state: fallbackState }).thumbUrl
+    );
   };
 
   const handleAddToCart = async () => {
     if (!currentAsset) return;
+    if (!isShopifyHost) {
+      setStatusMessage('Add to cart is disabled in preview mode.');
+      return;
+    }
     setIsAdding(true);
     setStatusMessage(null);
+    const formatColorProperty = (id: string) => {
+      const color = findColorById(id);
+      return color ? JSON.stringify({ name: color.name, id: color.id, hex: color.hex, finish: color.finish }) : '';
+    };
     const payload: { items: CartPayload[] } = {
       items: [
         {
@@ -198,6 +262,10 @@ export default function Configurator() {
             Shade: configuration.shade,
             Camera: configuration.camera,
             State: configuration.state,
+            LampColor: formatColorProperty(configuration.lampColor),
+            BaseColor: formatColorProperty(configuration.baseColor),
+            AdapterColor: formatColorProperty(configuration.adapterColor),
+            GuardColor: formatColorProperty(configuration.guardColor),
             PreviewUrl: currentAsset.beautyUrl,
             ConfiguratorVersion: CONFIGURATOR_VERSION
           }
@@ -227,6 +295,8 @@ export default function Configurator() {
   useEffect(() => {
     setIsLoadingImage(true);
   }, [currentAsset?.beautyUrl]);
+
+  const selectedColorId = configuration[COLOR_KEYS[colorTab]];
 
   return (
     <div>
@@ -264,6 +334,32 @@ export default function Configurator() {
             />
           </div>
 
+          <div className="section">
+            <div className="section-heading">
+              <div>
+                <h3>Colors</h3>
+                <p>Kies kleuren per onderdeel. Filters en zoeken helpen je sneller kiezen.</p>
+              </div>
+              <SegmentedControl
+                options={[
+                  { value: 'lamp', label: 'Lamp' },
+                  { value: 'base', label: 'Base' },
+                  { value: 'adapter', label: 'Adapter' },
+                  { value: 'guard', label: 'Guard' }
+                ]}
+                value={colorTab}
+                onChange={(value) => setColorTab(value as ColorPart)}
+              />
+            </div>
+            <ColorSwatchGrid
+              colors={colorOptions[colorTab]}
+              selected={selectedColorId}
+              onSelect={(id) => handleColorSelect(colorTab, id)}
+              onClear={() => handleColorClear(colorTab)}
+              label={colorTab}
+            />
+          </div>
+
           <div className="section" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div>
               <h3>Camera</h3>
@@ -288,9 +384,12 @@ export default function Configurator() {
           </div>
 
           <div className="section" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="button" onClick={handleAddToCart} disabled={isAdding || !currentAsset}>
+            <button className="button" onClick={handleAddToCart} disabled={isAdding || !currentAsset || !isShopifyHost}>
               {isAdding ? 'Toevoegen…' : 'Add to cart'}
             </button>
+            {!isShopifyHost && (
+              <span className="host-guard">Add to cart is uitgeschakeld buiten Shopify (preview mode).</span>
+            )}
             {statusMessage && <span style={{ color: '#0f172a', fontWeight: 600 }}>{statusMessage}</span>}
           </div>
         </div>
