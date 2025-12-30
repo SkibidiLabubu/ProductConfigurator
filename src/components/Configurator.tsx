@@ -153,53 +153,50 @@ export default function Configurator() {
   );
 
   useEffect(() => {
-    let active = true;
-    buildAvailabilityMap()
-      .then((map) => {
-        if (!active) return;
-        const hasEntries = Object.keys(map.bases).length > 0;
-        if (hasEntries) {
-          setAvailability(map);
-          setConfiguration((prev) => coerceConfig(map, prev));
-        }
-      })
-      .catch(() => {
-        /* Ignore and keep static manifest */
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
+    let cancelled = false;
     const nextConfig = coerceConfig(availability, configuration);
     setConfiguration(nextConfig);
-    const asset = findAsset(availability, nextConfig) ?? {
-      ...resolveAssetUrls(nextConfig),
-      exists: true
-    };
-    setCurrentAsset(asset);
-    preloadAssetSet(asset);
-    const shadeOptions = getAvailableShades(availability, nextConfig.base);
-    const cameraOptions = getAvailableCameras(availability, nextConfig.base, nextConfig.shade);
-    const nextThumbCandidates = [
-      ...cameraOptions.map((camera) => resolveAssetUrls({ ...nextConfig, camera })),
-      ...shadeOptions.map((shade) => resolveAssetUrls({ ...nextConfig, shade }))
-    ];
+    setStatusMessage(null);
+    (async () => {
+      const availabilityForSelection = await probeAvailability(nextConfig);
+      if (cancelled) return;
+      setCurrentAsset(availabilityForSelection);
+      setAvailabilityMessage(availabilityForSelection.exists ? null : 'Combination not available');
+      if (!availabilityForSelection.exists) {
+        setIsLoadingImage(false);
+        return;
+      }
+      if (availabilityForSelection.exists) {
+        preloadAssetSet(availabilityForSelection);
+      }
+    })();
+    const nextThumbCandidates = [resolveAssetUrls({ ...nextConfig, camera: nextConfig.camera })];
     nextThumbCandidates.forEach(preloadAssetSet);
+    return () => {
+      cancelled = true;
+    };
   }, [availability, configuration]);
 
-  const baseOptions = useMemo(() => getAvailableBases(availability), [availability]);
-  const shadeOptions = useMemo(() => getAvailableShades(availability, configuration.base), [availability, configuration.base]);
-  const cameraOptions = useMemo(
-    () => getAvailableCameras(availability, configuration.base, configuration.shade),
-    [availability, configuration.base, configuration.shade]
-  );
-  const stateOptions = useMemo(
-    () => getAvailableStates(availability, configuration.base, configuration.shade, configuration.camera),
-    [availability, configuration.base, configuration.shade, configuration.camera]
-  );
+  useEffect(() => {
+    if (configuration.state === 'off' && renderPass === 'emission') {
+      setRenderPass('beauty');
+    }
+  }, [configuration.state, renderPass]);
+
+  const baseOptions = useMemo(() => AVAILABLE_BASES as BaseKey[], []);
+  const shadeOptions = useMemo(() => AVAILABLE_SHADES as ShadeKey[], []);
+  const cameraOptions = useMemo(() => [...AVAILABLE_CAMERAS] as CameraKey[], []);
+  const stateOptions = useMemo(() => [...AVAILABLE_STATES] as StateKey[], []);
+
+  const handleColorSelect = (part: ColorPart, id: string) => {
+    setConfiguration((prev) => coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: id } as Configuration));
+  };
+
+  const handleColorClear = (part: ColorPart) => {
+    setConfiguration((prev) =>
+      coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: normalizeColorSelection('', part) } as Configuration)
+    );
+  };
 
   const handleColorSelect = (part: ColorPart, id: string) => {
     setConfiguration((prev) => coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: id } as Configuration));
@@ -290,11 +287,27 @@ export default function Configurator() {
     }
   };
 
+  const selectedColorId = configuration[COLOR_KEYS[colorTab]];
+  const displayedUrl = useMemo(() => {
+    if (!currentAsset) return undefined;
+    switch (renderPass) {
+      case 'ao':
+        return currentAsset.aoUrl;
+      case 'normal':
+        return currentAsset.normalUrl;
+      case 'emission':
+        return currentAsset.emissionUrl ?? currentAsset.beautyUrl;
+      case 'beauty':
+      default:
+        return currentAsset.beautyUrl;
+    }
+  }, [currentAsset, renderPass]);
+
   const onImageLoad = () => setIsLoadingImage(false);
 
   useEffect(() => {
     setIsLoadingImage(true);
-  }, [currentAsset?.beautyUrl]);
+  }, [displayedUrl]);
 
   const selectedColorId = configuration[COLOR_KEYS[colorTab]];
 
@@ -381,6 +394,19 @@ export default function Configurator() {
                 onChange={(value) => setConfiguration((prev) => coerceConfig(availability, { ...prev, state: value as StateKey }))}
               />
             </div>
+            <div>
+              <h3>Pass</h3>
+              <SegmentedControl
+                options={[
+                  { value: 'beauty', label: 'Beauty' },
+                  { value: 'ao', label: 'AO' },
+                  { value: 'normal', label: 'Normal' },
+                  { value: 'emission', label: 'Emission', disabled: configuration.state === 'off' }
+                ]}
+                value={renderPass}
+                onChange={(value) => setRenderPass(value as RenderPass)}
+              />
+            </div>
           </div>
 
           <div className="section" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -391,15 +417,16 @@ export default function Configurator() {
               <span className="host-guard">Add to cart is uitgeschakeld buiten Shopify (preview mode).</span>
             )}
             {statusMessage && <span style={{ color: '#0f172a', fontWeight: 600 }}>{statusMessage}</span>}
+            {availabilityMessage && <span style={{ color: '#b91c1c', fontWeight: 600 }}>{availabilityMessage}</span>}
           </div>
         </div>
 
         <div>
           <div className="preview-shell">
-            {currentAsset && (
+            {currentAsset?.exists && displayedUrl && (
               <img
-                key={currentAsset.beautyUrl}
-                src={currentAsset.beautyUrl}
+                key={displayedUrl}
+                src={displayedUrl}
                 alt={`Preview ${configuration.base} ${configuration.shade}`}
                 className="preview-image"
                 style={{ opacity: isLoadingImage ? 0 : 1, transition: 'opacity 240ms ease' }}
@@ -407,6 +434,9 @@ export default function Configurator() {
               />
             )}
             {isLoadingImage && <div className="preview-skeleton" />}
+            {!currentAsset?.exists && availabilityMessage && (
+              <div className="preview-unavailable">{availabilityMessage}</div>
+            )}
           </div>
           <p style={{ marginTop: '0.75rem', color: '#475569' }}>
             Assets worden resolved via vaste paden en geprobeerd met HEAD requests. UI toont alleen combinaties met een geldige

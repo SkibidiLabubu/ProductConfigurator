@@ -19,8 +19,8 @@ export interface Configuration {
 export interface AssetUrls {
   beautyUrl: string;
   thumbUrl: string;
-  aoUrl?: string;
-  normalUrl?: string;
+  aoUrl: string;
+  normalUrl: string;
   emissionUrl?: string;
 }
 

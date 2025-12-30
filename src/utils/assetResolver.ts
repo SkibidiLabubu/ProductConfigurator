@@ -11,7 +11,7 @@ const CAMERAS: CameraKey[] = [...AVAILABLE_CAMERAS];
 const DEFAULT_COLORS = getDefaultColors();
 
 function buildBasePath(config: Configuration, root = CDN_ROOT) {
-  return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}`;
+  return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}/lamp_${config.lampColor}/base_${config.baseColor}/adapter_${config.adapterColor}/guard_${config.guardColor}`;
 }
 
 export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
@@ -38,11 +38,64 @@ async function headExists(url: string): Promise<boolean> {
   return probeCache.get(url) as Promise<boolean>;
 }
 
-export async function probeAvailability(config: Configuration, root = CDN_ROOT): Promise<AssetAvailability> {
-  const urls = resolveAssetUrls(config, root);
-  const [beautyOk, thumbOk] = await Promise.all([headExists(urls.beautyUrl), headExists(urls.thumbUrl)]);
+async function withExtensionFallback(basePath: string, filename: string) {
+  const webp = buildAssetPath(basePath, filename, 'webp');
+  const webpOk = await headExists(webp);
+  if (webpOk) {
+    return { url: webp, exists: true } as const;
+  }
+  const png = buildAssetPath(basePath, filename, 'png');
+  const pngOk = await headExists(png);
+  return { url: png, exists: pngOk } as const;
+}
+
+export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
+  const basePath = buildBasePath(config, root);
   return {
-    ...urls,
+    beautyUrl: buildAssetPath(basePath, 'beauty'),
+    thumbUrl: buildAssetPath(basePath, 'beauty_512'),
+    aoUrl: buildAssetPath(basePath, 'ao'),
+    normalUrl: buildAssetPath(basePath, 'normal'),
+    emissionUrl: config.state === 'on' ? buildAssetPath(basePath, 'emission') : undefined
+  };
+}
+
+export async function resolveAssetUrlsWithFallback(config: Configuration, root = CDN_ROOT): Promise<AssetUrls> {
+  const basePath = buildBasePath(config, root);
+  const [beauty, thumb, ao, normal, emission] = await Promise.all([
+    withExtensionFallback(basePath, 'beauty'),
+    withExtensionFallback(basePath, 'beauty_512'),
+    withExtensionFallback(basePath, 'ao'),
+    withExtensionFallback(basePath, 'normal'),
+    config.state === 'on' ? withExtensionFallback(basePath, 'emission') : Promise.resolve({ url: undefined, exists: false })
+  ]);
+
+  return {
+    beautyUrl: beauty.url,
+    thumbUrl: thumb.url,
+    aoUrl: ao.url,
+    normalUrl: normal.url,
+    emissionUrl: emission.url
+  } as AssetUrls;
+}
+
+export async function probeAvailability(config: Configuration, root = CDN_ROOT): Promise<AssetAvailability> {
+  const basePath = buildBasePath(config, root);
+  const [beauty, thumb, ao, normal, emission] = await Promise.all([
+    withExtensionFallback(basePath, 'beauty'),
+    withExtensionFallback(basePath, 'beauty_512'),
+    withExtensionFallback(basePath, 'ao'),
+    withExtensionFallback(basePath, 'normal'),
+    config.state === 'on' ? withExtensionFallback(basePath, 'emission') : Promise.resolve({ url: undefined, exists: false })
+  ]);
+  const beautyOk = beauty.exists;
+  const thumbOk = thumb.exists;
+  return {
+    beautyUrl: beauty.url,
+    thumbUrl: thumb.url,
+    aoUrl: ao.url,
+    normalUrl: normal.url,
+    emissionUrl: emission.url,
     exists: Boolean(beautyOk || thumbOk)
   };
 }

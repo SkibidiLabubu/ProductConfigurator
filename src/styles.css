@@ -108,6 +108,19 @@
   animation: shimmer 1.4s ease infinite;
 }
 
+.leah-configurator .preview-unavailable {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fef2f2;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(15, 23, 42, 0.6);
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% 0;
