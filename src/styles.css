@@ -1,23 +1,15 @@
-:root {
+.leah-configurator {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #0f172a;
   background-color: #f8fafc;
+  min-height: 100vh;
 }
 
-* {
+.leah-configurator * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-}
-
-#root {
-  min-height: 100vh;
-}
-
-.button {
+.leah-configurator .button {
   padding: 0.65rem 1rem;
   border: none;
   border-radius: 0.75rem;
@@ -29,23 +21,29 @@ body {
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
 }
 
-.button:disabled {
+.leah-configurator .button.secondary {
+  background: #e2e8f0;
+  color: #0f172a;
+  box-shadow: none;
+}
+
+.leah-configurator .button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
 }
 
-.button:not(:disabled):hover {
+.leah-configurator .button:not(:disabled):hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
 }
 
-.grid {
+.leah-configurator .grid {
   display: grid;
   gap: 0.75rem;
 }
 
-.selector-tile {
+.leah-configurator .selector-tile {
   border-radius: 0.75rem;
   border: 1px solid #e2e8f0;
   background: #fff;
@@ -55,12 +53,12 @@ body {
   transition: border-color 120ms ease, box-shadow 160ms ease;
 }
 
-.selector-tile.selected {
+.leah-configurator .selector-tile.selected {
   border-color: #0f172a;
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
 }
 
-.selector-label {
+.leah-configurator .selector-label {
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
   font-weight: 600;
@@ -71,19 +69,19 @@ body {
   color: #0f172a;
 }
 
-.selector-label small {
+.leah-configurator .selector-label small {
   color: #64748b;
   font-weight: 500;
 }
 
-.thumb {
+.leah-configurator .thumb {
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
   background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
 }
 
-.preview-shell {
+.leah-configurator .preview-shell {
   width: 100%;
   border-radius: 1rem;
   overflow: hidden;
@@ -95,19 +93,32 @@ body {
   justify-content: center;
 }
 
-.preview-image {
+.leah-configurator .preview-image {
   width: 100%;
   height: 100%;
   object-fit: contain;
   display: block;
 }
 
-.preview-skeleton {
+.leah-configurator .preview-skeleton {
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, #111827 0%, #1f2937 50%, #111827 100%);
   background-size: 200% 200%;
   animation: shimmer 1.4s ease infinite;
+}
+
+.leah-configurator .preview-unavailable {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fef2f2;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(15, 23, 42, 0.6);
 }
 
 @keyframes shimmer {
@@ -119,7 +130,7 @@ body {
   }
 }
 
-.segmented-control {
+.leah-configurator .segmented-control {
   display: inline-flex;
   background: #e2e8f0;
   padding: 0.25rem;
@@ -127,7 +138,7 @@ body {
   gap: 0.25rem;
 }
 
-.segmented-control button {
+.leah-configurator .segmented-control button {
   border: none;
   background: transparent;
   padding: 0.45rem 0.9rem;
@@ -138,12 +149,12 @@ body {
   transition: background 120ms ease, box-shadow 120ms ease;
 }
 
-.segmented-control button.active {
+.leah-configurator .segmented-control button.active {
   background: #fff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
-.layout {
+.leah-configurator .layout {
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 2rem;
@@ -152,31 +163,43 @@ body {
   margin: 0 auto;
 }
 
-.section {
+.leah-configurator .section {
   margin-bottom: 1.25rem;
 }
 
-.section h3 {
+.leah-configurator .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.leah-configurator .section h3 {
   margin: 0 0 0.5rem 0;
   font-size: 1rem;
   letter-spacing: -0.01em;
 }
 
-.section p {
+.leah-configurator .section p {
   margin: 0 0 0.75rem 0;
   color: #475569;
   font-size: 0.95rem;
 }
 
-.header {
+.leah-configurator .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+  padding: 1.5rem;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.badge {
+.leah-configurator .badge {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -188,8 +211,130 @@ body {
   font-size: 0.85rem;
 }
 
+.leah-configurator .color-grid-shell {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #fff;
+}
+
+.leah-configurator .color-grid-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.leah-configurator .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.leah-configurator .control-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.leah-configurator input[type='text'],
+.leah-configurator select {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.leah-configurator .color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.leah-configurator .color-swatch {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 160ms ease;
+}
+
+.leah-configurator .color-swatch.selected {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
+}
+
+.leah-configurator .color-swatch-chip {
+  width: 48px;
+  height: 48px;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.leah-configurator .color-swatch-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.leah-configurator .color-swatch.selected .color-swatch-check {
+  opacity: 1;
+}
+
+.leah-configurator .color-swatch-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.leah-configurator .color-name {
+  font-weight: 700;
+}
+
+.leah-configurator .color-finish {
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.leah-configurator .empty-note {
+  grid-column: 1 / -1;
+  color: #475569;
+  font-weight: 600;
+  padding: 0.5rem;
+}
+
+.leah-configurator .host-guard {
+  color: #b45309;
+  font-weight: 600;
+}
+
 @media (max-width: 980px) {
-  .layout {
+  .leah-configurator .layout {
     grid-template-columns: 1fr;
+  }
+
+  .leah-configurator .header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

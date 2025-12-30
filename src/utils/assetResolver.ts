@@ -1,5 +1,15 @@
 import { AVAILABLE_BASES, AVAILABLE_CAMERAS, AVAILABLE_SHADES, AVAILABLE_STATES, CDN_ROOT, DEFAULT_CAMERA, DEFAULT_STATE } from '../config';
-import type { AssetAvailability, AssetUrls, AvailabilityMap, BaseKey, CameraKey, Configuration, ShadeKey, StateKey } from '../types/configurator';
+import { getDefaultColors } from '../colors';
+import type {
+  AssetAvailability,
+  AssetUrls,
+  AvailabilityMap,
+  BaseKey,
+  CameraKey,
+  Configuration,
+  ShadeKey,
+  StateKey
+} from '../types/configurator';
 
 const probeCache = new Map<string, Promise<boolean>>();
 
@@ -7,20 +17,14 @@ const EMPTY_STATE_MAP: Record<StateKey, AssetAvailability | undefined> = { on: u
 
 const STATES: StateKey[] = [...AVAILABLE_STATES];
 const CAMERAS: CameraKey[] = [...AVAILABLE_CAMERAS];
+const DEFAULT_COLORS = getDefaultColors();
 
 function buildBasePath(config: Configuration, root = CDN_ROOT) {
-  return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}`;
+  return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}/lamp_${config.lampColor}/base_${config.baseColor}/adapter_${config.adapterColor}/guard_${config.guardColor}`;
 }
 
-export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
-  const basePath = buildBasePath(config, root);
-  return {
-    beautyUrl: `${basePath}/beauty.webp`,
-    thumbUrl: `${basePath}/beauty_512.webp`,
-    aoUrl: `${basePath}/ao.webp`,
-    normalUrl: `${basePath}/normal.webp`,
-    emissionUrl: config.state === 'on' ? `${basePath}/emission.webp` : undefined
-  };
+function buildAssetPath(basePath: string, filename: string, extension: 'webp' | 'png' = 'webp') {
+  return `${basePath}/${filename}.${extension}`;
 }
 
 async function headExists(url: string): Promise<boolean> {
@@ -35,11 +39,64 @@ async function headExists(url: string): Promise<boolean> {
   return probeCache.get(url) as Promise<boolean>;
 }
 
-export async function probeAvailability(config: Configuration, root = CDN_ROOT): Promise<AssetAvailability> {
-  const urls = resolveAssetUrls(config, root);
-  const [beautyOk, thumbOk] = await Promise.all([headExists(urls.beautyUrl), headExists(urls.thumbUrl)]);
+async function withExtensionFallback(basePath: string, filename: string) {
+  const webp = buildAssetPath(basePath, filename, 'webp');
+  const webpOk = await headExists(webp);
+  if (webpOk) {
+    return { url: webp, exists: true } as const;
+  }
+  const png = buildAssetPath(basePath, filename, 'png');
+  const pngOk = await headExists(png);
+  return { url: png, exists: pngOk } as const;
+}
+
+export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
+  const basePath = buildBasePath(config, root);
   return {
-    ...urls,
+    beautyUrl: buildAssetPath(basePath, 'beauty'),
+    thumbUrl: buildAssetPath(basePath, 'beauty_512'),
+    aoUrl: buildAssetPath(basePath, 'ao'),
+    normalUrl: buildAssetPath(basePath, 'normal'),
+    emissionUrl: config.state === 'on' ? buildAssetPath(basePath, 'emission') : undefined
+  };
+}
+
+export async function resolveAssetUrlsWithFallback(config: Configuration, root = CDN_ROOT): Promise<AssetUrls> {
+  const basePath = buildBasePath(config, root);
+  const [beauty, thumb, ao, normal, emission] = await Promise.all([
+    withExtensionFallback(basePath, 'beauty'),
+    withExtensionFallback(basePath, 'beauty_512'),
+    withExtensionFallback(basePath, 'ao'),
+    withExtensionFallback(basePath, 'normal'),
+    config.state === 'on' ? withExtensionFallback(basePath, 'emission') : Promise.resolve({ url: undefined, exists: false })
+  ]);
+
+  return {
+    beautyUrl: beauty.url,
+    thumbUrl: thumb.url,
+    aoUrl: ao.url,
+    normalUrl: normal.url,
+    emissionUrl: emission.url
+  } as AssetUrls;
+}
+
+export async function probeAvailability(config: Configuration, root = CDN_ROOT): Promise<AssetAvailability> {
+  const basePath = buildBasePath(config, root);
+  const [beauty, thumb, ao, normal, emission] = await Promise.all([
+    withExtensionFallback(basePath, 'beauty'),
+    withExtensionFallback(basePath, 'beauty_512'),
+    withExtensionFallback(basePath, 'ao'),
+    withExtensionFallback(basePath, 'normal'),
+    config.state === 'on' ? withExtensionFallback(basePath, 'emission') : Promise.resolve({ url: undefined, exists: false })
+  ]);
+  const beautyOk = beauty.exists;
+  const thumbOk = thumb.exists;
+  return {
+    beautyUrl: beauty.url,
+    thumbUrl: thumb.url,
+    aoUrl: ao.url,
+    normalUrl: normal.url,
+    emissionUrl: emission.url,
     exists: Boolean(beautyOk || thumbOk)
   };
 }
@@ -64,7 +121,7 @@ export async function buildAvailabilityMap(options: ProbeOptions = {}): Promise<
     for (const shade of shades) {
       for (const camera of cameras) {
         for (const state of states) {
-          const configuration: Configuration = { base, shade, camera, state };
+          const configuration: Configuration = { base, shade, camera, state, ...DEFAULT_COLORS };
           tasks.push(
             (async () => {
               const availability = await probeAvailability(configuration);
@@ -104,7 +161,7 @@ export function buildStaticManifest(): AvailabilityMap {
       map.bases[base]!.shades[shade] = {} as Record<CameraKey, { states: Record<StateKey, AssetAvailability | undefined> }>;
       for (const camera of CAMERAS) {
         const states: Record<StateKey, AssetAvailability | undefined> = { on: undefined, off: undefined };
-        const urls = resolveAssetUrls({ base, shade, camera, state: DEFAULT_STATE });
+        const urls = resolveAssetUrls({ base, shade, camera, state: DEFAULT_STATE, ...DEFAULT_COLORS });
         states[DEFAULT_STATE] = { ...urls, exists: true };
         map.bases[base]!.shades[shade]![camera] = { states };
       }
@@ -127,7 +184,8 @@ export function pickFirstAvailableConfiguration(map: AvailabilityMap): Configura
             base: base as BaseKey,
             shade: shade as ShadeKey,
             camera: camera as CameraKey,
-            state: existingState
+            state: existingState,
+            ...DEFAULT_COLORS
           };
         }
       }
@@ -138,7 +196,8 @@ export function pickFirstAvailableConfiguration(map: AvailabilityMap): Configura
     base: AVAILABLE_BASES[0] as BaseKey,
     shade: AVAILABLE_SHADES[0] as ShadeKey,
     camera: DEFAULT_CAMERA,
-    state: DEFAULT_STATE
+    state: DEFAULT_STATE,
+    ...DEFAULT_COLORS
   };
 }
 
