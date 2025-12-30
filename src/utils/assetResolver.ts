@@ -1,6 +1,15 @@
 import { AVAILABLE_BASES, AVAILABLE_CAMERAS, AVAILABLE_SHADES, AVAILABLE_STATES, CDN_ROOT, DEFAULT_CAMERA, DEFAULT_STATE } from '../config';
 import { getDefaultColors } from '../colors';
-import type { AssetAvailability, AssetUrls, AvailabilityMap, BaseKey, CameraKey, Configuration, ShadeKey, StateKey } from '../types/configurator';
+import type {
+  AssetAvailability,
+  AssetUrls,
+  AvailabilityMap,
+  BaseKey,
+  CameraKey,
+  Configuration,
+  ShadeKey,
+  StateKey
+} from '../types/configurator';
 
 const probeCache = new Map<string, Promise<boolean>>();
 
@@ -11,7 +20,11 @@ const CAMERAS: CameraKey[] = [...AVAILABLE_CAMERAS];
 const DEFAULT_COLORS = getDefaultColors();
 
 function buildBasePath(config: Configuration, root = CDN_ROOT) {
-  return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}/lamp_${config.lampColor}/base_${config.baseColor}/adapter_${config.adapterColor}/guard_${config.guardColor}`;
+  return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}`;
+}
+
+function buildBackgroundPath(camera: CameraKey, root = CDN_ROOT) {
+  return `${root}/background/${camera}`;
 }
 
 function buildAssetPath(basePath: string, filename: string, extension: 'webp' | 'png' = 'webp') {
@@ -43,53 +56,58 @@ async function withExtensionFallback(basePath: string, filename: string) {
 
 export function resolveAssetUrls(config: Configuration, root = CDN_ROOT): AssetUrls {
   const basePath = buildBasePath(config, root);
+  const backgroundPath = buildBackgroundPath(config.camera, root);
   return {
+    variant: undefined,
     beautyUrl: buildAssetPath(basePath, 'beauty'),
+    beautyFgUrl: buildAssetPath(basePath, 'beauty_fg'),
+    backgroundUrl: buildAssetPath(backgroundPath, 'bg'),
     thumbUrl: buildAssetPath(basePath, 'beauty_512'),
     aoUrl: buildAssetPath(basePath, 'ao'),
-    normalUrl: buildAssetPath(basePath, 'normal'),
-    emissionUrl: config.state === 'on' ? buildAssetPath(basePath, 'emission') : undefined
+    emissionUrl: config.state === 'on' ? buildAssetPath(basePath, 'emission') : undefined,
+    maskBaseUrl: buildAssetPath(basePath, 'mask_base'),
+    maskShadeUrl: buildAssetPath(basePath, 'mask_shade'),
+    maskAdapterUrl: buildAssetPath(basePath, 'mask_adapter'),
+    maskGuardUrl: buildAssetPath(basePath, 'mask_guard')
   };
 }
 
 export async function resolveAssetUrlsWithFallback(config: Configuration, root = CDN_ROOT): Promise<AssetUrls> {
   const basePath = buildBasePath(config, root);
-  const [beauty, thumb, ao, normal, emission] = await Promise.all([
+  const backgroundPath = buildBackgroundPath(config.camera, root);
+  const [beautyFg, beauty, thumb, ao, emission, maskBase, maskShade, maskAdapter, maskGuard] = await Promise.all([
+    withExtensionFallback(basePath, 'beauty_fg'),
     withExtensionFallback(basePath, 'beauty'),
     withExtensionFallback(basePath, 'beauty_512'),
     withExtensionFallback(basePath, 'ao'),
-    withExtensionFallback(basePath, 'normal'),
-    config.state === 'on' ? withExtensionFallback(basePath, 'emission') : Promise.resolve({ url: undefined, exists: false })
+    config.state === 'on' ? withExtensionFallback(basePath, 'emission') : Promise.resolve({ url: undefined, exists: false }),
+    withExtensionFallback(basePath, 'mask_base'),
+    withExtensionFallback(basePath, 'mask_shade'),
+    withExtensionFallback(basePath, 'mask_adapter'),
+    withExtensionFallback(basePath, 'mask_guard')
   ]);
+  const variant: AssetUrls['variant'] = beautyFg.exists ? 'separateBackground' : 'embeddedBackground';
+  const background = variant === 'separateBackground' ? await withExtensionFallback(backgroundPath, 'bg') : { url: undefined, exists: false };
 
   return {
-    beautyUrl: beauty.url,
+    variant,
+    beautyUrl: variant === 'embeddedBackground' ? beauty.url : undefined,
+    beautyFgUrl: beautyFg.exists ? beautyFg.url : undefined,
+    backgroundUrl: background.url,
     thumbUrl: thumb.url,
     aoUrl: ao.url,
-    normalUrl: normal.url,
-    emissionUrl: emission.url
-  } as AssetUrls;
+    emissionUrl: emission.url,
+    maskBaseUrl: maskBase.url,
+    maskShadeUrl: maskShade.url,
+    maskAdapterUrl: maskAdapter.url,
+    maskGuardUrl: maskGuard.url
+  };
 }
 
 export async function probeAvailability(config: Configuration, root = CDN_ROOT): Promise<AssetAvailability> {
-  const basePath = buildBasePath(config, root);
-  const [beauty, thumb, ao, normal, emission] = await Promise.all([
-    withExtensionFallback(basePath, 'beauty'),
-    withExtensionFallback(basePath, 'beauty_512'),
-    withExtensionFallback(basePath, 'ao'),
-    withExtensionFallback(basePath, 'normal'),
-    config.state === 'on' ? withExtensionFallback(basePath, 'emission') : Promise.resolve({ url: undefined, exists: false })
-  ]);
-  const beautyOk = beauty.exists;
-  const thumbOk = thumb.exists;
-  return {
-    beautyUrl: beauty.url,
-    thumbUrl: thumb.url,
-    aoUrl: ao.url,
-    normalUrl: normal.url,
-    emissionUrl: emission.url,
-    exists: Boolean(beautyOk || thumbOk)
-  };
+  const urls = await resolveAssetUrlsWithFallback(config, root);
+  const exists = Boolean((urls.variant === 'separateBackground' ? urls.beautyFgUrl : urls.beautyUrl) || urls.thumbUrl);
+  return { ...urls, exists } as AssetAvailability;
 }
 
 export interface ProbeOptions {
@@ -153,7 +171,7 @@ export function buildStaticManifest(): AvailabilityMap {
       for (const camera of CAMERAS) {
         const states: Record<StateKey, AssetAvailability | undefined> = { on: undefined, off: undefined };
         const urls = resolveAssetUrls({ base, shade, camera, state: DEFAULT_STATE, ...DEFAULT_COLORS });
-        states[DEFAULT_STATE] = { ...urls, exists: true };
+        states[DEFAULT_STATE] = { ...urls, exists: true } as AssetAvailability;
         map.bases[base]!.shades[shade]![camera] = { states };
       }
     }

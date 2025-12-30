@@ -12,4 +12,6 @@ export function preloadImage(url?: string) {
 export function preloadAssetSet(urls: AssetUrls) {
   preloadImage(urls.thumbUrl);
   preloadImage(urls.beautyUrl);
+  preloadImage(urls.beautyFgUrl);
+  preloadImage(urls.backgroundUrl);
 }

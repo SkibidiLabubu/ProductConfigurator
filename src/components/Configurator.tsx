@@ -13,6 +13,7 @@ import {
 } from '../utils/assetResolver';
 import { colorsForPart, findColorById, normalizeColorSelection } from '../colors';
 import { preloadAssetSet } from '../utils/preload';
+import { compositeProduct, revokeObjectUrl } from '../utils/compositor';
 import type {
   AssetAvailability,
   AvailabilityMap,
@@ -34,16 +35,10 @@ const COLOR_KEYS: Record<ColorPart, 'lampColor' | 'baseColor' | 'adapterColor' |
 };
 const SHOPIFY_HOST_PATTERN = /(?:myshopify\.com|shopify\.com)$/;
 
-type RenderPass = 'beauty' | 'ao' | 'normal' | 'emission';
-
 interface CartPayload {
   id: string;
   quantity: number;
   properties: Record<string, string>;
-}
-
-function findAsset(map: AvailabilityMap, config: Configuration): AssetAvailability | undefined {
-  return map.bases[config.base]?.shades?.[config.shade]?.[config.camera]?.states?.[config.state];
 }
 
 function coerceConfig(map: AvailabilityMap, current: Configuration): Configuration {
@@ -142,7 +137,7 @@ export default function Configurator() {
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
-  const [renderPass, setRenderPass] = useState<RenderPass>('beauty');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isShopifyHost] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     return SHOPIFY_HOST_PATTERN.test(window.location.hostname);
@@ -162,12 +157,17 @@ export default function Configurator() {
     const nextConfig = coerceConfig(availability, configuration);
     setConfiguration(nextConfig);
     setStatusMessage(null);
+    setIsLoadingImage(true);
     (async () => {
       const availabilityForSelection = await probeAvailability(nextConfig);
       if (cancelled) return;
       setCurrentAsset(availabilityForSelection);
-      setAvailabilityMessage(availabilityForSelection.exists ? null : 'Combination not available');
+      setAvailabilityMessage(availabilityForSelection.exists ? null : 'This combination has no render set');
       if (!availabilityForSelection.exists) {
+        setPreviewUrl((prev) => {
+          revokeObjectUrl(prev);
+          return null;
+        });
         setIsLoadingImage(false);
         return;
       }
@@ -182,12 +182,6 @@ export default function Configurator() {
     };
   }, [availability, configuration]);
 
-  useEffect(() => {
-    if (configuration.state === 'off' && renderPass === 'emission') {
-      setRenderPass('beauty');
-    }
-  }, [configuration.state, renderPass]);
-
   const baseOptions = useMemo(() => getAvailableBases(availability), [availability]);
   const shadeOptions = useMemo(() => getAvailableShades(availability, configuration.base), [availability, configuration.base]);
   const cameraOptions = useMemo(
@@ -198,6 +192,49 @@ export default function Configurator() {
     () => getAvailableStates(availability, configuration.base, configuration.shade, configuration.camera),
     [availability, configuration.base, configuration.shade, configuration.camera]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentAsset?.exists) {
+      setPreviewUrl((prev) => {
+        revokeObjectUrl(prev);
+        return null;
+      });
+      setIsLoadingImage(false);
+      return undefined;
+    }
+
+    const baseColor = findColorById(configuration.baseColor);
+    const shadeColor = findColorById(configuration.lampColor);
+    const adapterColor = findColorById(configuration.adapterColor);
+    const guardColor = findColorById(configuration.guardColor);
+
+    setIsLoadingImage(true);
+    (async () => {
+      const url = await compositeProduct({
+        assets: currentAsset,
+        colors: {
+          base: baseColor,
+          shade: shadeColor,
+          adapter: adapterColor,
+          guard: guardColor
+        }
+      });
+      if (cancelled) {
+        revokeObjectUrl(url);
+        return;
+      }
+      setPreviewUrl((prev) => {
+        if (prev && prev !== url) revokeObjectUrl(prev);
+        return url;
+      });
+      setIsLoadingImage(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAsset, configuration.baseColor, configuration.lampColor, configuration.adapterColor, configuration.guardColor]);
 
   const handleColorSelect = (part: ColorPart, id: string) => {
     setConfiguration((prev) => coerceConfig(availability, { ...prev, [COLOR_KEYS[part]]: id } as Configuration));
@@ -250,6 +287,7 @@ export default function Configurator() {
       const color = findColorById(id);
       return color ? JSON.stringify({ name: color.name, id: color.id, hex: color.hex, finish: color.finish }) : '';
     };
+    const previewAssetUrl = currentAsset?.beautyUrl ?? currentAsset?.beautyFgUrl ?? currentAsset?.thumbUrl ?? '';
     const payload: { items: CartPayload[] } = {
       items: [
         {
@@ -260,11 +298,11 @@ export default function Configurator() {
             Shade: configuration.shade,
             Camera: configuration.camera,
             State: configuration.state,
-            LampColor: formatColorProperty(configuration.lampColor),
+            ShadeColor: formatColorProperty(configuration.lampColor),
             BaseColor: formatColorProperty(configuration.baseColor),
             AdapterColor: formatColorProperty(configuration.adapterColor),
             GuardColor: formatColorProperty(configuration.guardColor),
-            PreviewUrl: currentAsset.beautyUrl,
+            PreviewUrl: previewAssetUrl,
             ConfiguratorVersion: CONFIGURATOR_VERSION
           }
         }
@@ -289,26 +327,14 @@ export default function Configurator() {
   };
 
   const selectedColorId = configuration[COLOR_KEYS[colorTab]];
-  const displayedUrl = useMemo(() => {
-    if (!currentAsset) return undefined;
-    switch (renderPass) {
-      case 'ao':
-        return currentAsset.aoUrl;
-      case 'normal':
-        return currentAsset.normalUrl;
-      case 'emission':
-        return currentAsset.emissionUrl ?? currentAsset.beautyUrl;
-      case 'beauty':
-      default:
-        return currentAsset.beautyUrl;
-    }
-  }, [currentAsset, renderPass]);
 
   const onImageLoad = () => setIsLoadingImage(false);
 
   useEffect(() => {
     setIsLoadingImage(true);
-  }, [displayedUrl]);
+  }, [previewUrl]);
+
+  useEffect(() => () => revokeObjectUrl(previewUrl), [previewUrl]);
 
   return (
     <div>
@@ -354,7 +380,7 @@ export default function Configurator() {
               </div>
               <SegmentedControl
                 options={[
-                  { value: 'lamp', label: 'Lamp' },
+                  { value: 'lamp', label: 'Shade' },
                   { value: 'base', label: 'Base' },
                   { value: 'adapter', label: 'Adapter' },
                   { value: 'guard', label: 'Guard' }
@@ -393,19 +419,6 @@ export default function Configurator() {
                 onChange={(value) => setConfiguration((prev) => coerceConfig(availability, { ...prev, state: value as StateKey }))}
               />
             </div>
-            <div>
-              <h3>Pass</h3>
-              <SegmentedControl
-                options={[
-                  { value: 'beauty', label: 'Beauty' },
-                  { value: 'ao', label: 'AO' },
-                  { value: 'normal', label: 'Normal' },
-                  { value: 'emission', label: 'Emission', disabled: configuration.state === 'off' }
-                ]}
-                value={renderPass}
-                onChange={(value) => setRenderPass(value as RenderPass)}
-              />
-            </div>
           </div>
 
           <div className="section" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -422,10 +435,10 @@ export default function Configurator() {
 
         <div>
           <div className="preview-shell">
-            {currentAsset?.exists && displayedUrl && (
+            {currentAsset?.exists && previewUrl && (
               <img
-                key={displayedUrl}
-                src={displayedUrl}
+                key={previewUrl}
+                src={previewUrl}
                 alt={`Preview ${configuration.base} ${configuration.shade}`}
                 className="preview-image"
                 style={{ opacity: isLoadingImage ? 0 : 1, transition: 'opacity 240ms ease' }}

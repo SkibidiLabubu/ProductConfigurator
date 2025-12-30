@@ -17,11 +17,17 @@ export interface Configuration {
 }
 
 export interface AssetUrls {
-  beautyUrl: string;
-  thumbUrl: string;
-  aoUrl: string;
-  normalUrl: string;
+  variant?: 'separateBackground' | 'embeddedBackground';
+  beautyUrl?: string;
+  beautyFgUrl?: string;
+  backgroundUrl?: string;
+  thumbUrl?: string;
+  aoUrl?: string;
   emissionUrl?: string;
+  maskBaseUrl?: string;
+  maskShadeUrl?: string;
+  maskAdapterUrl?: string;
+  maskGuardUrl?: string;
 }
 
 export interface AssetAvailability extends AssetUrls {
