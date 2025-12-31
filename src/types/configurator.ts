@@ -23,6 +23,7 @@ export interface AssetUrls {
   backgroundUrl?: string;
   thumbUrl?: string;
   aoUrl?: string;
+  normalUrl?: string;
   emissionUrl?: string;
   maskBaseUrl?: string;
   maskShadeUrl?: string;
@@ -30,8 +31,31 @@ export interface AssetUrls {
   maskGuardUrl?: string;
 }
 
+export interface AssetProbeAttempt {
+  url: string;
+  ok: boolean;
+  status?: number;
+  fromFrameSuffix?: boolean;
+}
+
+export interface ExpectedAssetFile {
+  label: string;
+  path: string;
+  alternatives?: string[];
+}
+
+export interface AssetProbe extends AssetUrls {
+  asset: string;
+  attempts: AssetProbeAttempt[];
+  expected: ExpectedAssetFile;
+  frameOnly?: boolean;
+}
+
 export interface AssetAvailability extends AssetUrls {
   exists: boolean;
+  probes?: AssetProbe[];
+  missingFiles?: ExpectedAssetFile[];
+  frameOnlyFiles?: ExpectedAssetFile[];
 }
 
 export interface ConfigurationAvailability {

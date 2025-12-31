@@ -3,3 +3,10 @@ node_modules
 npm-debug.log*
 dist
 .env
+# Ignore render binaries; keep documentation stubs
+public/renders/**/*
+!public/renders/README.md
+!public/renders/.gitkeep
+renders/**/*
+!renders/README.md
+!renders/.gitkeep
