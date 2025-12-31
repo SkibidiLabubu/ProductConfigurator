@@ -21,6 +21,7 @@ import type {
   CameraKey,
   ColorPart,
   Configuration,
+  ExpectedAssetFile,
   ShadeKey,
   StateKey
 } from '../types/configurator';
@@ -39,6 +40,56 @@ interface CartPayload {
   id: string;
   quantity: number;
   properties: Record<string, string>;
+}
+
+function formatExpectedFile(file: ExpectedAssetFile) {
+  const alternatives = file.alternatives?.length ? ` (or ${file.alternatives.join(', ')})` : '';
+  return `${file.path}${alternatives}`;
+}
+
+function DebugPanel({ probes }: { probes?: AssetAvailability['probes'] }) {
+  if (!probes?.length) return null;
+
+  return (
+    <div
+      style={{
+        marginTop: '0.75rem',
+        padding: '0.75rem',
+        border: '1px dashed #cbd5e1',
+        borderRadius: 8,
+        background: '#f8fafc'
+      }}
+    >
+      <details open>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a' }}>Asset diagnostics</summary>
+        <div style={{ marginTop: '0.5rem', display: 'grid', gap: '0.35rem' }}>
+          {probes.map((probe) => (
+            <div key={probe.asset} style={{ padding: '0.4rem', borderRadius: 6, background: '#e2e8f0' }}>
+              <div style={{ fontWeight: 600, color: '#0f172a' }}>{probe.asset}</div>
+              <div style={{ fontSize: '0.85rem', color: '#0f172a' }}>
+                Expected: <code>{formatExpectedFile(probe.expected)}</code>
+              </div>
+              <ul style={{ margin: '0.35rem 0 0 0.75rem', padding: 0, listStyle: 'disc' }}>
+                {probe.attempts.map((attempt, index) => (
+                  <li key={`${probe.asset}-${index}`} style={{ color: '#0f172a', fontSize: '0.85rem' }}>
+                    <code>{attempt.url}</code> —{' '}
+                    {attempt.ok
+                      ? 'ok'
+                      : attempt.status === 404
+                      ? '404'
+                      : typeof attempt.status === 'number'
+                      ? `status ${attempt.status}`
+                      : 'unreachable'}
+                    {attempt.fromFrameSuffix ? ' (frame suffix)' : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
 }
 
 function coerceConfig(map: AvailabilityMap, current: Configuration): Configuration {
@@ -161,8 +212,20 @@ export default function Configurator() {
     (async () => {
       const availabilityForSelection = await probeAvailability(nextConfig);
       if (cancelled) return;
+      const missingAssets = availabilityForSelection.missingFiles ?? [];
+      const frameOnlyAssets = availabilityForSelection.frameOnlyFiles ?? [];
+      const messageParts = [] as string[];
+      if (!availabilityForSelection.exists) {
+        messageParts.push('Missing render assets for this combination');
+      }
+      if (frameOnlyAssets.length) {
+        messageParts.push('Frame-suffixed files were found; exports should be unsuffixed');
+      }
+      if (missingAssets.length) {
+        messageParts.push(`Expected: ${missingAssets.map((file) => formatExpectedFile(file)).join(', ')}`);
+      }
       setCurrentAsset(availabilityForSelection);
-      setAvailabilityMessage(availabilityForSelection.exists ? null : 'This combination has no render set');
+      setAvailabilityMessage(messageParts.length ? messageParts.join(' — ') : null);
       if (!availabilityForSelection.exists) {
         setPreviewUrl((prev) => {
           revokeObjectUrl(prev);
@@ -327,6 +390,8 @@ export default function Configurator() {
   };
 
   const selectedColorId = configuration[COLOR_KEYS[colorTab]];
+  const missingFiles = currentAsset?.missingFiles ?? [];
+  const frameOnlyFiles = currentAsset?.frameOnlyFiles ?? [];
 
   const onImageLoad = () => setIsLoadingImage(false);
 
@@ -446,10 +511,33 @@ export default function Configurator() {
               />
             )}
             {isLoadingImage && <div className="preview-skeleton" />}
-            {!currentAsset?.exists && availabilityMessage && (
-              <div className="preview-unavailable">{availabilityMessage}</div>
+            {!currentAsset?.exists && (
+              <div className="preview-unavailable" style={{ textAlign: 'left' }}>
+                <p style={{ marginTop: 0, marginBottom: '0.35rem' }}>
+                  Missing render assets for this combination.
+                </p>
+                {availabilityMessage && <p style={{ margin: 0, color: '#b91c1c' }}>{availabilityMessage}</p>}
+                {!!missingFiles.length && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{ fontWeight: 600 }}>Expected filenames:</div>
+                    <ul style={{ margin: '0.35rem 0 0 1.1rem', padding: 0 }}>
+                      {missingFiles.map((file) => (
+                        <li key={file.path} style={{ fontSize: '0.9rem' }}>
+                          <code>{formatExpectedFile(file)}</code>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {!!frameOnlyFiles.length && (
+                  <p style={{ marginTop: '0.5rem', color: '#b91c1c' }}>
+                    Frame-suffixed files were detected. Please export unsuffixed versions for deployment.
+                  </p>
+                )}
+              </div>
             )}
           </div>
+          {!currentAsset?.exists && <DebugPanel probes={currentAsset?.probes} />}
           <p style={{ marginTop: '0.75rem', color: '#475569' }}>
             Assets worden resolved via vaste paden en geprobeerd met HEAD requests. UI toont alleen combinaties met een geldige
             beauty of thumbnail.
