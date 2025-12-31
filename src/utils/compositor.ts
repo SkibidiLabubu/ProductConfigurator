@@ -1,6 +1,6 @@
 import type { AssetUrls, ColorOption } from '../types/configurator';
 
-const bitmapCache = new Map<string, Promise<ImageBitmap>>();
+const bitmapCache = new Map<string, Promise<ImageBitmap | null>>();
 
 function hexToRgb(hex?: string): [number, number, number] | null {
   if (!hex) return null;
@@ -22,7 +22,11 @@ async function fetchBitmap(url?: string): Promise<ImageBitmap | null> {
       if (!res.ok) throw new Error('Asset fetch failed');
       return res.blob();
     })
-    .then((blob) => createImageBitmap(blob));
+    .then((blob) => createImageBitmap(blob))
+    .catch((error) => {
+      console.error('Failed to fetch bitmap', url, error);
+      return null;
+    });
   bitmapCache.set(url, promise);
   return promise;
 }
@@ -117,11 +121,18 @@ export async function compositeProduct(options: {
   const emissionIntensity = options.emissionIntensity ?? 1;
 
   const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-  const baseBitmapPromise = variant === 'separateBackground' ? fetchBitmap(assets.beautyFgUrl) : fetchBitmap(assets.beautyUrl);
+  const baseBitmapPromise = (async () => {
+    const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
+    const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
+
+    const primaryBitmap = await fetchBitmap(primary);
+    if (primaryBitmap) return primaryBitmap;
+    return fetchBitmap(secondary);
+  })();
   const backgroundPromise = variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl) : null;
 
   const [baseBitmap, backgroundBitmap] = await Promise.all([baseBitmapPromise, backgroundPromise]);
-  if (!baseBitmap) return null;
+  if (!baseBitmap) return assets.thumbUrl ?? null;
 
   const width = baseBitmap.width;
   const height = baseBitmap.height;
@@ -184,6 +195,6 @@ export async function compositeProduct(options: {
 }
 
 export function revokeObjectUrl(url?: string | null) {
-  if (!url) return;
+  if (!url || !url.startsWith('blob:')) return;
   URL.revokeObjectURL(url);
 }
