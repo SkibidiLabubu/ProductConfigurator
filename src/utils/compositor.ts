@@ -121,11 +121,18 @@ export async function compositeProduct(options: {
   const emissionIntensity = options.emissionIntensity ?? 1;
 
   const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-  const baseBitmapPromise = variant === 'separateBackground' ? fetchBitmap(assets.beautyFgUrl) : fetchBitmap(assets.beautyUrl);
+  const baseBitmapPromise = (async () => {
+    const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
+    const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
+
+    const primaryBitmap = await fetchBitmap(primary);
+    if (primaryBitmap) return primaryBitmap;
+    return fetchBitmap(secondary);
+  })();
   const backgroundPromise = variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl) : null;
 
   const [baseBitmap, backgroundBitmap] = await Promise.all([baseBitmapPromise, backgroundPromise]);
-  if (!baseBitmap) return null;
+  if (!baseBitmap) return assets.thumbUrl ?? null;
 
   const width = baseBitmap.width;
   const height = baseBitmap.height;
@@ -188,6 +195,6 @@ export async function compositeProduct(options: {
 }
 
 export function revokeObjectUrl(url?: string | null) {
-  if (!url) return;
+  if (!url || !url.startsWith('blob:')) return;
   URL.revokeObjectURL(url);
 }
