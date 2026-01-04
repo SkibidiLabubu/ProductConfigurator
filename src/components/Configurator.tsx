@@ -224,15 +224,12 @@ export default function Configurator() {
       if (missingAssets.length) {
         messageParts.push(`Expected: ${missingAssets.map((file) => formatExpectedFile(file)).join(', ')}`);
       }
-      const frameWarning = frameOnlyAssets.length
-        ? 'Using frame-suffixed files (rendering continues); prefer unsuffixed exports'
-        : null;
       const mergedAssets: AssetAvailability = availabilityForSelection.exists
         ? availabilityForSelection
         : { ...resolvedAssets, ...availabilityForSelection, exists: true };
       setCurrentAsset(mergedAssets);
       setProbeWasConfident(availabilityForSelection.exists);
-      setAvailabilityMessage(messageParts.length ? messageParts.join(' — ') : frameWarning);
+      setAvailabilityMessage(messageParts.length ? messageParts.join(' — ') : null);
       preloadAssetSet(mergedAssets);
     })();
     const nextThumbCandidates = [resolveAssetUrls({ ...nextConfig, camera: nextConfig.camera })];
