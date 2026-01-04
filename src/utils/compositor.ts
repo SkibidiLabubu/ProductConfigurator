@@ -2,6 +2,9 @@ import type { AssetUrls, ColorOption } from '../types/configurator';
 
 const bitmapCache = new Map<string, Promise<ImageBitmap | null>>();
 
+const supportsOffscreenWithBlob =
+  typeof OffscreenCanvas !== 'undefined' && typeof OffscreenCanvas.prototype.convertToBlob === 'function';
+
 function hexToRgb(hex?: string): [number, number, number] | null {
   if (!hex) return null;
   const normalized = hex.replace('#', '');
@@ -32,13 +35,36 @@ async function fetchBitmap(url?: string): Promise<ImageBitmap | null> {
 }
 
 function createWorkingCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
-  if (typeof OffscreenCanvas !== 'undefined') {
+  if (supportsOffscreenWithBlob) {
     return new OffscreenCanvas(width, height);
   }
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   return canvas;
+}
+
+async function canvasToWebpBlob(canvas: OffscreenCanvas | HTMLCanvasElement, quality = 0.95): Promise<Blob | null> {
+  if (canvas instanceof OffscreenCanvas && typeof canvas.convertToBlob === 'function') {
+    return canvas.convertToBlob({ type: 'image/webp', quality });
+  }
+
+  if (canvas instanceof HTMLCanvasElement) {
+    return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+  }
+
+  if (canvas instanceof OffscreenCanvas) {
+    const fallbackCanvas = document.createElement('canvas');
+    fallbackCanvas.width = canvas.width;
+    fallbackCanvas.height = canvas.height;
+    const bitmap = canvas.transferToImageBitmap();
+    const ctx = fallbackCanvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return new Promise<Blob | null>((resolve) => fallbackCanvas.toBlob(resolve, 'image/webp', quality));
+  }
+
+  return null;
 }
 
 function getImageData(bitmap: ImageBitmap, width: number, height: number) {
@@ -115,83 +141,89 @@ export async function compositeProduct(options: {
   aoIntensity?: number;
   emissionIntensity?: number;
 }): Promise<string | null> {
-  const { assets, colors } = options;
-  const colorStrength = options.colorStrength ?? 0.85;
-  const aoIntensity = options.aoIntensity ?? 0.35;
-  const emissionIntensity = options.emissionIntensity ?? 1;
+  try {
+    const { assets, colors } = options;
+    const colorStrength = options.colorStrength ?? 0.85;
+    const aoIntensity = options.aoIntensity ?? 0.35;
+    const emissionIntensity = options.emissionIntensity ?? 1;
 
-  const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-  const baseBitmapPromise = (async () => {
-    const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
-    const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
+    const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
+    const baseBitmapPromise = (async () => {
+      const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
+      const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
 
-    const primaryBitmap = await fetchBitmap(primary);
-    if (primaryBitmap) return primaryBitmap;
-    return fetchBitmap(secondary);
-  })();
-  const backgroundPromise = variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl) : null;
+      const primaryBitmap = await fetchBitmap(primary);
+      if (primaryBitmap) return primaryBitmap;
+      return fetchBitmap(secondary);
+    })();
+    const backgroundPromise = variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl) : null;
 
-  const [baseBitmap, backgroundBitmap] = await Promise.all([baseBitmapPromise, backgroundPromise]);
-  if (!baseBitmap) return assets.thumbUrl ?? null;
+    const [baseBitmap, backgroundBitmap] = await Promise.all([baseBitmapPromise, backgroundPromise]);
+    if (!baseBitmap) return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
 
-  const width = baseBitmap.width;
-  const height = baseBitmap.height;
-  const canvas = createWorkingCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
+    const width = baseBitmap.width;
+    const height = baseBitmap.height;
+    const canvas = createWorkingCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
 
-  ctx.clearRect(0, 0, width, height);
-  if (backgroundBitmap) {
-    ctx.drawImage(backgroundBitmap, 0, 0, width, height);
-  }
-  ctx.drawImage(baseBitmap, 0, 0, width, height);
-
-  const baseData = ctx.getImageData(0, 0, width, height);
-  const workingData = ctx.getImageData(0, 0, width, height);
-
-  const maskTasks: Array<Promise<void>> = [];
-  const applyForPart = (maskUrl?: string, color?: ColorOption | null) => {
-    if (!maskUrl || !color) return;
-    const rgb = hexToRgb(color.hex);
-    if (!rgb) return;
-    maskTasks.push(
-      (async () => {
-        const maskBitmap = await fetchBitmap(maskUrl);
-        if (!maskBitmap) return;
-        const maskData = await bitmapToImageData(maskBitmap);
-        applyTint(workingData, baseData, maskData, rgb, colorStrength);
-      })()
-    );
-  };
-
-  applyForPart(assets.maskBaseUrl, colors.base);
-  applyForPart(assets.maskShadeUrl, colors.shade);
-  applyForPart(assets.maskAdapterUrl, colors.adapter);
-  applyForPart(assets.maskGuardUrl, colors.guard);
-
-  await Promise.all(maskTasks);
-
-  if (assets.aoUrl) {
-    const aoBitmap = await fetchBitmap(assets.aoUrl);
-    if (aoBitmap) {
-      const aoData = await bitmapToImageData(aoBitmap);
-      applyAo(workingData, aoData, aoIntensity);
+    ctx.clearRect(0, 0, width, height);
+    if (backgroundBitmap) {
+      ctx.drawImage(backgroundBitmap, 0, 0, width, height);
     }
-  }
+    ctx.drawImage(baseBitmap, 0, 0, width, height);
 
-  if (assets.emissionUrl) {
-    const emissionBitmap = await fetchBitmap(assets.emissionUrl);
-    if (emissionBitmap) {
-      const emissionData = await bitmapToImageData(emissionBitmap);
-      applyEmission(workingData, emissionData, emissionIntensity);
+    const baseData = ctx.getImageData(0, 0, width, height);
+    const workingData = ctx.getImageData(0, 0, width, height);
+
+    const maskTasks: Array<Promise<void>> = [];
+    const applyForPart = (maskUrl?: string, color?: ColorOption | null) => {
+      if (!maskUrl || !color) return;
+      const rgb = hexToRgb(color.hex);
+      if (!rgb) return;
+      maskTasks.push(
+        (async () => {
+          const maskBitmap = await fetchBitmap(maskUrl);
+          if (!maskBitmap) return;
+          const maskData = await bitmapToImageData(maskBitmap);
+          applyTint(workingData, baseData, maskData, rgb, colorStrength);
+        })()
+      );
+    };
+
+    applyForPart(assets.maskBaseUrl, colors.base);
+    applyForPart(assets.maskShadeUrl, colors.shade);
+    applyForPart(assets.maskAdapterUrl, colors.adapter);
+    applyForPart(assets.maskGuardUrl, colors.guard);
+
+    await Promise.all(maskTasks);
+
+    if (assets.aoUrl) {
+      const aoBitmap = await fetchBitmap(assets.aoUrl);
+      if (aoBitmap) {
+        const aoData = await bitmapToImageData(aoBitmap);
+        applyAo(workingData, aoData, aoIntensity);
+      }
     }
+
+    if (assets.emissionUrl) {
+      const emissionBitmap = await fetchBitmap(assets.emissionUrl);
+      if (emissionBitmap) {
+        const emissionData = await bitmapToImageData(emissionBitmap);
+        applyEmission(workingData, emissionData, emissionIntensity);
+      }
+    }
+
+    ctx.putImageData(workingData, 0, 0);
+
+    const blob = await canvasToWebpBlob(canvas, 0.95);
+    if (!blob) return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    console.error('Failed to composite product preview', error);
+    const { assets } = options;
+    return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
   }
-
-  ctx.putImageData(workingData, 0, 0);
-
-  const blob = canvas instanceof OffscreenCanvas ? await canvas.convertToBlob({ type: 'image/webp', quality: 0.95 }) : await new Promise<Blob | null>((resolve) => (canvas as HTMLCanvasElement).toBlob(resolve, 'image/webp', 0.95));
-  if (!blob) return null;
-  return URL.createObjectURL(blob);
 }
 
 export function revokeObjectUrl(url?: string | null) {
