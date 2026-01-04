@@ -51,7 +51,7 @@ type AssetFilename =
   | 'normal'
   | 'emission';
 
-type ProbeMethod = 'GET-range' | 'GET';
+type ProbeMethod = 'HEAD' | 'GET';
 
 function buildBasePath(config: Configuration, root = CDN_ROOT) {
   return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}`;
@@ -100,16 +100,24 @@ function makeFailedAttempt(url: string, method: ProbeMethod): AssetProbeAttempt 
   return { url, ok: false, method };
 }
 
+async function probeWithHead(url: string): Promise<AssetProbeAttempt> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    return makeAttempt(url, 'HEAD', res);
+  } catch {
+    return makeFailedAttempt(url, 'HEAD');
+  }
+}
+
 async function probeWithGet(url: string, useRange: boolean): Promise<AssetProbeAttempt> {
   try {
     const res = await fetch(url, {
       method: 'GET',
-      cache: 'no-store',
       headers: useRange ? { Range: 'bytes=0-0' } : undefined
     });
-    return makeAttempt(url, useRange ? 'GET-range' : 'GET', res);
+    return makeAttempt(url, 'GET', res);
   } catch {
-    return makeFailedAttempt(url, useRange ? 'GET-range' : 'GET');
+    return makeFailedAttempt(url, 'GET');
   }
 }
 
@@ -118,16 +126,13 @@ async function probeUrl(url: string): Promise<AssetProbeAttempt> {
     probeCache.set(
       url,
       (async () => {
+        const headResult = await probeWithHead(url);
+        if (headResult.ok) return headResult;
+
         const rangedGetResult = await probeWithGet(url, true);
         if (rangedGetResult.ok) return rangedGetResult;
 
-        const fullGetResult = await probeWithGet(url, false);
-
-        if (!fullGetResult.ok && rangedGetResult.status === 416) {
-          return fullGetResult;
-        }
-
-        return fullGetResult.ok ? fullGetResult : rangedGetResult.ok ? rangedGetResult : fullGetResult;
+        return probeWithGet(url, false);
       })()
     );
   }
