@@ -196,7 +196,7 @@ function addMissingIfNeeded(
   if (probe.frameOnly) {
     frameOnlyTarget.push(expected);
   }
-  if (!probe.exists) {
+  if (!probe.exists && !probe.frameOnly) {
     target.push(expected);
   }
 }
@@ -249,9 +249,11 @@ export async function resolveAssetUrlsWithFallback(config: Configuration, root =
     probeAsset(backgroundPath, 'bg')
   ]);
 
-  const variant: AssetUrls['variant'] = beautyFg.exists
+  const beautyFgPresent = beautyFg.exists || beautyFg.frameOnly;
+  const beautyPresent = beauty.exists || beauty.frameOnly;
+  const variant: AssetUrls['variant'] = beautyFgPresent
     ? 'separateBackground'
-    : beauty.exists
+    : beautyPresent
     ? 'embeddedBackground'
     : undefined;
 

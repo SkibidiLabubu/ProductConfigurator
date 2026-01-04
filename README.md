@@ -11,18 +11,22 @@ unavailable options automatically.
   - `utils/preload.ts` – preload helper for beauty/thumbnail assets
   - `config.ts` – configurable constants (CDN root, default options, variant id)
 - **public/renders/** – dev test set (bases 01/05/10, shades 01/10/20, cameras 01–03, on-state only)
-- **renders/** – same dataset at repository root for reference
+- **renders/** – same dataset at repository root for reference (copied automatically into `public/renders`)
 
 ## Running locally
 1. Install dependencies (requires npm registry access):
    ```bash
    npm install
    ```
-2. Start Vite dev server:
+2. Sync render assets into `public/renders` (dev and build scripts run this automatically):
+   ```bash
+   npm run sync:renders
+   ```
+3. Start Vite dev server:
    ```bash
    npm run dev
    ```
-3. Build for production:
+4. Build for production (will sync renders first):
    ```bash
    npm run build
    ```

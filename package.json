@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sync:renders": "node scripts/sync-renders.mjs",
+    "predev": "npm run sync:renders",
     "dev": "vite",
+    "prebuild": "npm run sync:renders",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
