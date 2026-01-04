@@ -22,7 +22,10 @@ async function fetchBitmap(url?: string): Promise<ImageBitmap | null> {
   }
   const promise = fetch(url)
     .then((res) => {
-      if (!res.ok) throw new Error('Asset fetch failed');
+      if (!res.ok) {
+        console.error('Failed to fetch bitmap', url, 'status', res.status, 'content-type', res.headers.get('content-type'));
+        throw new Error('Asset fetch failed');
+      }
       return res.blob();
     })
     .then((blob) => createImageBitmap(blob))

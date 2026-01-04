@@ -72,7 +72,7 @@ function DebugPanel({ probes }: { probes?: AssetAvailability['probes'] }) {
               <ul style={{ margin: '0.35rem 0 0 0.75rem', padding: 0, listStyle: 'disc' }}>
                 {probe.attempts.map((attempt, index) => (
                   <li key={`${probe.asset}-${index}`} style={{ color: '#0f172a', fontSize: '0.85rem' }}>
-                    <code>{attempt.url}</code> —{' '}
+                    <code>[{attempt.method}] {attempt.url}</code> —{' '}
                     {attempt.ok
                       ? 'ok'
                       : attempt.status === 404
@@ -185,10 +185,12 @@ export default function Configurator() {
   const [colorTab, setColorTab] = useState<ColorPart>('lamp');
   const [currentAsset, setCurrentAsset] = useState<AssetAvailability | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState(true);
+  const [renderError, setRenderError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [probeWasConfident, setProbeWasConfident] = useState<boolean>(true);
   const [isShopifyHost] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     return SHOPIFY_HOST_PATTERN.test(window.location.hostname);
@@ -212,6 +214,7 @@ export default function Configurator() {
     (async () => {
       const availabilityForSelection = await probeAvailability(nextConfig);
       if (cancelled) return;
+      const resolvedAssets = resolveAssetUrls(nextConfig);
       const missingAssets = availabilityForSelection.missingFiles ?? [];
       const frameOnlyAssets = availabilityForSelection.frameOnlyFiles ?? [];
       const messageParts = [] as string[];
@@ -224,19 +227,13 @@ export default function Configurator() {
       if (missingAssets.length) {
         messageParts.push(`Expected: ${missingAssets.map((file) => formatExpectedFile(file)).join(', ')}`);
       }
-      setCurrentAsset(availabilityForSelection);
+      const mergedAssets: AssetAvailability = availabilityForSelection.exists
+        ? availabilityForSelection
+        : { ...resolvedAssets, ...availabilityForSelection, exists: true };
+      setCurrentAsset(mergedAssets);
+      setProbeWasConfident(availabilityForSelection.exists);
       setAvailabilityMessage(messageParts.length ? messageParts.join(' — ') : null);
-      if (!availabilityForSelection.exists) {
-        setPreviewUrl((prev) => {
-          revokeObjectUrl(prev);
-          return null;
-        });
-        setIsLoadingImage(false);
-        return;
-      }
-      if (availabilityForSelection.exists) {
-        preloadAssetSet(availabilityForSelection);
-      }
+      preloadAssetSet(mergedAssets);
     })();
     const nextThumbCandidates = [resolveAssetUrls({ ...nextConfig, camera: nextConfig.camera })];
     nextThumbCandidates.forEach(preloadAssetSet);
@@ -258,21 +255,18 @@ export default function Configurator() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!currentAsset?.exists) {
-      setPreviewUrl((prev) => {
-        revokeObjectUrl(prev);
-        return null;
-      });
+    if (!currentAsset) {
       setIsLoadingImage(false);
+      setRenderError(false);
       return undefined;
     }
-
     const baseColor = findColorById(configuration.baseColor);
     const shadeColor = findColorById(configuration.lampColor);
     const adapterColor = findColorById(configuration.adapterColor);
     const guardColor = findColorById(configuration.guardColor);
 
     setIsLoadingImage(true);
+    setRenderError(false);
     (async () => {
       try {
         const url = await compositeProduct({
@@ -288,12 +282,16 @@ export default function Configurator() {
           revokeObjectUrl(url);
           return;
         }
+        if (!url) {
+          throw new Error('No preview could be generated');
+        }
         setPreviewUrl((prev) => {
           if (prev && prev !== url) revokeObjectUrl(prev);
           return url;
         });
       } catch (error) {
         console.error('Failed to create preview image', error);
+        setRenderError(true);
         setPreviewUrl((prev) => {
           revokeObjectUrl(prev);
           return currentAsset?.thumbUrl ?? currentAsset?.beautyUrl ?? currentAsset?.beautyFgUrl ?? null;
@@ -509,7 +507,7 @@ export default function Configurator() {
 
         <div>
           <div className="preview-shell">
-            {currentAsset?.exists && previewUrl && (
+            {previewUrl && (
               <img
                 key={previewUrl}
                 src={previewUrl}
@@ -520,10 +518,10 @@ export default function Configurator() {
               />
             )}
             {isLoadingImage && <div className="preview-skeleton" />}
-            {!currentAsset?.exists && (
+            {renderError && (
               <div className="preview-unavailable" style={{ textAlign: 'left' }}>
                 <p style={{ marginTop: 0, marginBottom: '0.35rem' }}>
-                  Missing render assets for this combination.
+                  Missing render assets for this combination or failed to load preview.
                 </p>
                 {availabilityMessage && <p style={{ margin: 0, color: '#b91c1c' }}>{availabilityMessage}</p>}
                 {!!missingFiles.length && (
@@ -546,10 +544,10 @@ export default function Configurator() {
               </div>
             )}
           </div>
-          {!currentAsset?.exists && <DebugPanel probes={currentAsset?.probes} />}
+          {!probeWasConfident && <DebugPanel probes={currentAsset?.probes} />}
           <p style={{ marginTop: '0.75rem', color: '#475569' }}>
-            Assets worden resolved via vaste paden en geprobeerd met HEAD requests. UI toont alleen combinaties met een geldige
-            beauty of thumbnail.
+            Assets worden resolved via vaste paden en geverifieerd met lichte GET-requests. UI probeert alsnog te renderen als
+            probes falen.
           </p>
         </div>
       </div>
