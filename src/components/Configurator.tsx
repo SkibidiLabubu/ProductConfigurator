@@ -274,24 +274,33 @@ export default function Configurator() {
 
     setIsLoadingImage(true);
     (async () => {
-      const url = await compositeProduct({
-        assets: currentAsset,
-        colors: {
-          base: baseColor,
-          shade: shadeColor,
-          adapter: adapterColor,
-          guard: guardColor
+      try {
+        const url = await compositeProduct({
+          assets: currentAsset,
+          colors: {
+            base: baseColor,
+            shade: shadeColor,
+            adapter: adapterColor,
+            guard: guardColor
+          }
+        });
+        if (cancelled) {
+          revokeObjectUrl(url);
+          return;
         }
-      });
-      if (cancelled) {
-        revokeObjectUrl(url);
-        return;
+        setPreviewUrl((prev) => {
+          if (prev && prev !== url) revokeObjectUrl(prev);
+          return url;
+        });
+      } catch (error) {
+        console.error('Failed to create preview image', error);
+        setPreviewUrl((prev) => {
+          revokeObjectUrl(prev);
+          return currentAsset?.thumbUrl ?? currentAsset?.beautyUrl ?? currentAsset?.beautyFgUrl ?? null;
+        });
+      } finally {
+        setIsLoadingImage(false);
       }
-      setPreviewUrl((prev) => {
-        if (prev && prev !== url) revokeObjectUrl(prev);
-        return url;
-      });
-      setIsLoadingImage(false);
     })();
 
     return () => {
