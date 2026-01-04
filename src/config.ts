@@ -1,4 +1,4 @@
-export const CDN_ROOT = '/renders';
+export const CDN_ROOT = import.meta.env.VITE_CDN_ROOT ?? '/renders';
 
 export const AVAILABLE_BASES = Array.from({ length: 38 }, (_, i) => `base_${String(i + 1).padStart(2, '0')}`);
 export const AVAILABLE_SHADES = Array.from({ length: 42 }, (_, i) => `shade_${String(i + 1).padStart(2, '0')}`);

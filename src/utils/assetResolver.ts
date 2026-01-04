@@ -51,6 +51,8 @@ type AssetFilename =
   | 'normal'
   | 'emission';
 
+type ProbeMethod = 'GET-range' | 'GET';
+
 function buildBasePath(config: Configuration, root = CDN_ROOT) {
   return `${root}/${config.base}/${config.shade}/${config.camera}/${config.state}`;
 }
@@ -90,13 +92,43 @@ function pickPrimaryAssetCandidate(basePath: string, filename: AssetFilename) {
   return buildAssetPath(basePath, filename, 'webp');
 }
 
-async function headProbe(url: string): Promise<AssetProbeAttempt> {
+function makeAttempt(url: string, method: ProbeMethod, res: Response): AssetProbeAttempt {
+  return { url, ok: res.ok, status: res.status, method };
+}
+
+function makeFailedAttempt(url: string, method: ProbeMethod): AssetProbeAttempt {
+  return { url, ok: false, method };
+}
+
+async function probeWithGet(url: string, useRange: boolean): Promise<AssetProbeAttempt> {
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: useRange ? { Range: 'bytes=0-0' } : undefined
+    });
+    return makeAttempt(url, useRange ? 'GET-range' : 'GET', res);
+  } catch {
+    return makeFailedAttempt(url, useRange ? 'GET-range' : 'GET');
+  }
+}
+
+async function probeUrl(url: string): Promise<AssetProbeAttempt> {
   if (!probeCache.has(url)) {
     probeCache.set(
       url,
-      fetch(url, { method: 'HEAD' })
-        .then((res) => ({ url, ok: res.ok, status: res.status }))
-        .catch(() => ({ url, ok: false }))
+      (async () => {
+        const rangedGetResult = await probeWithGet(url, true);
+        if (rangedGetResult.ok) return rangedGetResult;
+
+        const fullGetResult = await probeWithGet(url, false);
+
+        if (!fullGetResult.ok && rangedGetResult.status === 416) {
+          return fullGetResult;
+        }
+
+        return fullGetResult.ok ? fullGetResult : rangedGetResult.ok ? rangedGetResult : fullGetResult;
+      })()
     );
   }
 
@@ -112,7 +144,7 @@ async function probeAsset(
   const attempts: AssetProbeAttempt[] = [];
 
   for (const candidate of unsuffixed) {
-    const result = await headProbe(candidate);
+    const result = await probeUrl(candidate);
     attempts.push(result);
     if (result.ok) {
       return { url: candidate, exists: true, attempts, expected: expectedPath(basePath, filename), frameOnly: false } as const;
@@ -121,7 +153,7 @@ async function probeAsset(
 
   let frameHit: string | undefined;
   for (const candidate of frameCandidates) {
-    const result = await headProbe(candidate);
+    const result = await probeUrl(candidate);
     attempts.push({ ...result, fromFrameSuffix: true });
     if (result.ok && !frameHit) {
       frameHit = candidate;
