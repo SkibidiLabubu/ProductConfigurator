@@ -72,7 +72,7 @@ function DebugPanel({ probes }: { probes?: AssetAvailability['probes'] }) {
               <ul style={{ margin: '0.35rem 0 0 0.75rem', padding: 0, listStyle: 'disc' }}>
                 {probe.attempts.map((attempt, index) => (
                   <li key={`${probe.asset}-${index}`} style={{ color: '#0f172a', fontSize: '0.85rem' }}>
-                    <code>{attempt.url}</code> —{' '}
+                    <code>[{attempt.method}] {attempt.url}</code> —{' '}
                     {attempt.ok
                       ? 'ok'
                       : attempt.status === 404
