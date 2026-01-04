@@ -221,9 +221,6 @@ export default function Configurator() {
       if (!availabilityForSelection.exists) {
         messageParts.push('Missing render assets for this combination');
       }
-      if (frameOnlyAssets.length) {
-        messageParts.push('Frame-suffixed files were found; exports should be unsuffixed');
-      }
       if (missingAssets.length) {
         messageParts.push(`Expected: ${missingAssets.map((file) => formatExpectedFile(file)).join(', ')}`);
       }
