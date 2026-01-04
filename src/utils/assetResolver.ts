@@ -167,7 +167,7 @@ async function probeAsset(
 
   return {
     url: frameHit,
-    exists: false,
+    exists: Boolean(frameHit),
     attempts,
     expected: expectedPath(basePath, filename),
     frameOnly: Boolean(frameHit)
@@ -230,10 +230,12 @@ function addMissingIfNeeded(
   probe: Awaited<ReturnType<typeof probeAsset>>,
   expected: ExpectedAssetFile
 ) {
+  const hasAsset = probe.exists || probe.frameOnly;
+
   if (probe.frameOnly) {
     frameOnlyTarget.push(expected);
   }
-  if (!probe.exists && !probe.frameOnly) {
+  if (!hasAsset) {
     target.push(expected);
   }
 }
