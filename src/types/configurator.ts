@@ -34,6 +34,7 @@ export interface AssetUrls {
 export interface AssetProbeAttempt {
   url: string;
   ok: boolean;
+  method: 'HEAD' | 'GET';
   status?: number;
   fromFrameSuffix?: boolean;
 }
