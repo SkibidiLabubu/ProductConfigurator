@@ -3,7 +3,7 @@ import { join, resolve } from 'path';
 
 const distDir = resolve('dist');
 const distRendersDir = join(distDir, 'renders');
-const sampleRelativePath = join('base_01', 'shade_01', 'CAM_01', 'off', 'beauty_fg.webp');
+const sampleRelativePath = join('base_01', 'shade_01', 'CAM_01', 'on', 'beauty_fg.webp');
 const minFileThreshold = 20;
 
 async function getDirectoryReport(dir) {
