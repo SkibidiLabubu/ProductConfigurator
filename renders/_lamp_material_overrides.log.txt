@@ -1,0 +1,48 @@
+=== LEAH Lamp Material Override Log ===
+Timestamp: 2025-12-31 02:26:36
+Override target: objects starting with 'E14_Lamp_OFF_base_'
+Override values: BaseColor=(1.0, 1.0, 1.0, 1.0) Roughness=0.3 Specular/IORLevel=0.8 EmissionStrength=10.0
+
+[CAPTURE] COL_ASM_base_02 | E14_Lamp_OFF_base_03.001 | mat=MAT_LAMP_OFF.003 | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_03 | E14_Lamp_OFF_base_03 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_04 | E14_Lamp_OFF_base_04 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_05 | E14_Lamp_OFF_base_05 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_06 | E14_Lamp_OFF_base_06 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_07 | E14_Lamp_OFF_base_07 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_08 | E14_Lamp_OFF_base_08 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_09 | E14_Lamp_OFF_base_09 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_10 | E14_Lamp_OFF_base_10 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_11 | E14_Lamp_OFF_base_11 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_12 | E14_Lamp_OFF_base_12 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_13 | E14_Lamp_OFF_base_13 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_14 | E14_Lamp_OFF_base_14 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_15 | E14_Lamp_OFF_base_15 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_16 | E14_Lamp_OFF_base_16 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_17 | E14_Lamp_OFF_base_17 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_18 | E14_Lamp_OFF_base_18 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_19 | E14_Lamp_OFF_base_19 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_20 | E14_Lamp_OFF_base_20 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_21 | E14_Lamp_OFF_base_21 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_22 | E14_Lamp_OFF_base_22 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_23 | E14_Lamp_OFF_base_23 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_24 | E14_Lamp_OFF_base_24 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_25 | E14_Lamp_OFF_base_25 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_26 | E14_Lamp_OFF_base_26 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_27 | E14_Lamp_OFF_base_27 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_28 | E14_Lamp_OFF_base_28 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_29 | E14_Lamp_OFF_base_29 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_30 | E14_Lamp_OFF_base_30 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_31 | E14_Lamp_OFF_base_31 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_32 | E14_Lamp_OFF_base_32 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_33 | E14_Lamp_OFF_base_33 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_34 | E14_Lamp_OFF_base_34 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_35 | E14_Lamp_OFF_base_35 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_36 | E14_Lamp_OFF_base_36 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_37 | E14_Lamp_OFF_base_37 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+[CAPTURE] COL_ASM_base_38 | E14_Lamp_OFF_base_38 | mat=MAT_LAMP_OFF | principled=True | base_color=(0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0) | roughness=0.5 | spec=0.5 | emit_str=0.0
+
+Captured objects: 37
+
+
+[RESTORE] restored_objs=37 restored_sockets=148
+=== END ===
