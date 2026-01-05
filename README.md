@@ -54,6 +54,11 @@ URL for production.
 shades, cameras, and states. Results are cached in-memory to avoid duplicate requests. The UI is seeded with a static
 manifest (dev dataset) and refreshes when probing completes.
 
+### Frame-suffixed render sets
+If your render export only includes frame-suffixed files (for example `beauty_fg.webp0001.webp`), set `VITE_RENDER_FRAME_SUFFIX=0001`
+in your Netlify/Vite environment. The resolver will treat the suffixed file as the canonical URL while still probing
+unsuffixed fallbacks when available.
+
 ## Notes
 - Logic is ready for full datasets (bases 01–38, shades 01–42, cameras 01–03, on/off). The UI only surfaces combinations
   that respond positively to probes.
