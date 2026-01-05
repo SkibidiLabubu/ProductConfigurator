@@ -1,6 +1,23 @@
 import type { AssetUrls, ColorOption } from '../types/configurator';
 
-const bitmapCache = new Map<string, Promise<ImageBitmap | null>>();
+export interface FetchLog {
+  url: string;
+  stage: string;
+  status?: number;
+  ok: boolean;
+  contentType?: string | null;
+  error?: string;
+  fromCache?: boolean;
+}
+
+export interface CompositeResult {
+  url: string | null;
+  fetchLogs: FetchLog[];
+  error?: string;
+  fallbackUrl?: string | null;
+}
+
+const bitmapCache = new Map<string, { promise: Promise<ImageBitmap | null>; log?: FetchLog }>();
 
 const supportsOffscreenWithBlob =
   typeof OffscreenCanvas !== 'undefined' && typeof OffscreenCanvas.prototype.convertToBlob === 'function';
@@ -15,25 +32,43 @@ function hexToRgb(hex?: string): [number, number, number] | null {
   return [r, g, b];
 }
 
-async function fetchBitmap(url?: string): Promise<ImageBitmap | null> {
+function pushCachedLog(cacheEntry: { log?: FetchLog }, logs?: FetchLog[]) {
+  if (!logs || !cacheEntry.log) return;
+  logs.push({ ...cacheEntry.log, fromCache: true });
+}
+
+async function fetchBitmap(url?: string, stage = 'bitmap', logs?: FetchLog[]): Promise<ImageBitmap | null> {
   if (!url) return null;
-  if (bitmapCache.has(url)) {
-    return bitmapCache.get(url)!;
+  const cached = bitmapCache.get(url);
+  if (cached) {
+    pushCachedLog(cached, logs);
+    return cached.promise;
   }
-  const promise = fetch(url)
-    .then((res) => {
+
+  const log: FetchLog = { url, stage, ok: false };
+  const promise = (async () => {
+    try {
+      const res = await fetch(url);
+      log.status = res.status;
+      log.ok = res.ok;
+      log.contentType = res.headers.get('content-type');
       if (!res.ok) {
-        console.error('Failed to fetch bitmap', url, 'status', res.status, 'content-type', res.headers.get('content-type'));
         throw new Error('Asset fetch failed');
       }
-      return res.blob();
-    })
-    .then((blob) => createImageBitmap(blob))
-    .catch((error) => {
+      const blob = await res.blob();
+      const bitmap = await createImageBitmap(blob);
+      return bitmap;
+    } catch (error) {
+      log.ok = false;
+      log.error = (error as Error).message;
       console.error('Failed to fetch bitmap', url, error);
       return null;
-    });
-  bitmapCache.set(url, promise);
+    } finally {
+      logs?.push({ ...log });
+    }
+  })();
+
+  bitmapCache.set(url, { promise, log });
   return promise;
 }
 
@@ -132,6 +167,10 @@ async function bitmapToImageData(bitmap: ImageBitmap) {
   return getImageData(bitmap, bitmap.width, bitmap.height);
 }
 
+function pickBestFallbackAsset(assets: AssetUrls) {
+  return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
+}
+
 export async function compositeProduct(options: {
   assets: AssetUrls;
   colors: {
@@ -143,7 +182,9 @@ export async function compositeProduct(options: {
   colorStrength?: number;
   aoIntensity?: number;
   emissionIntensity?: number;
-}): Promise<string | null> {
+}): Promise<CompositeResult> {
+  const fetchLogs: FetchLog[] = [];
+  const fallbackUrl = pickBestFallbackAsset(options.assets);
   try {
     const { assets, colors } = options;
     const colorStrength = options.colorStrength ?? 0.85;
@@ -155,20 +196,21 @@ export async function compositeProduct(options: {
       const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
       const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
 
-      const primaryBitmap = await fetchBitmap(primary);
+      const primaryBitmap = await fetchBitmap(primary, 'base', fetchLogs);
       if (primaryBitmap) return primaryBitmap;
-      return fetchBitmap(secondary);
+      return fetchBitmap(secondary, 'base-fallback', fetchLogs);
     })();
-    const backgroundPromise = variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl) : null;
+    const backgroundPromise =
+      variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl, 'background', fetchLogs) : null;
 
     const [baseBitmap, backgroundBitmap] = await Promise.all([baseBitmapPromise, backgroundPromise]);
-    if (!baseBitmap) return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
+    if (!baseBitmap) return { url: fallbackUrl, fetchLogs, fallbackUrl };
 
     const width = baseBitmap.width;
     const height = baseBitmap.height;
     const canvas = createWorkingCanvas(width, height);
     const ctx = canvas.getContext('2d');
-    if (!ctx) return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
+    if (!ctx) return { url: fallbackUrl, fetchLogs, fallbackUrl };
 
     ctx.clearRect(0, 0, width, height);
     if (backgroundBitmap) {
@@ -180,13 +222,13 @@ export async function compositeProduct(options: {
     const workingData = ctx.getImageData(0, 0, width, height);
 
     const maskTasks: Array<Promise<void>> = [];
-    const applyForPart = (maskUrl?: string, color?: ColorOption | null) => {
+    const applyForPart = (stage: string, maskUrl?: string, color?: ColorOption | null) => {
       if (!maskUrl || !color) return;
       const rgb = hexToRgb(color.hex);
       if (!rgb) return;
       maskTasks.push(
         (async () => {
-          const maskBitmap = await fetchBitmap(maskUrl);
+          const maskBitmap = await fetchBitmap(maskUrl, stage, fetchLogs);
           if (!maskBitmap) return;
           const maskData = await bitmapToImageData(maskBitmap);
           applyTint(workingData, baseData, maskData, rgb, colorStrength);
@@ -194,15 +236,15 @@ export async function compositeProduct(options: {
       );
     };
 
-    applyForPart(assets.maskBaseUrl, colors.base);
-    applyForPart(assets.maskShadeUrl, colors.shade);
-    applyForPart(assets.maskAdapterUrl, colors.adapter);
-    applyForPart(assets.maskGuardUrl, colors.guard);
+    applyForPart('mask_base', assets.maskBaseUrl, colors.base);
+    applyForPart('mask_shade', assets.maskShadeUrl, colors.shade);
+    applyForPart('mask_adapter', assets.maskAdapterUrl, colors.adapter);
+    applyForPart('mask_guard', assets.maskGuardUrl, colors.guard);
 
     await Promise.all(maskTasks);
 
     if (assets.aoUrl) {
-      const aoBitmap = await fetchBitmap(assets.aoUrl);
+      const aoBitmap = await fetchBitmap(assets.aoUrl, 'ao', fetchLogs);
       if (aoBitmap) {
         const aoData = await bitmapToImageData(aoBitmap);
         applyAo(workingData, aoData, aoIntensity);
@@ -210,7 +252,7 @@ export async function compositeProduct(options: {
     }
 
     if (assets.emissionUrl) {
-      const emissionBitmap = await fetchBitmap(assets.emissionUrl);
+      const emissionBitmap = await fetchBitmap(assets.emissionUrl, 'emission', fetchLogs);
       if (emissionBitmap) {
         const emissionData = await bitmapToImageData(emissionBitmap);
         applyEmission(workingData, emissionData, emissionIntensity);
@@ -220,12 +262,11 @@ export async function compositeProduct(options: {
     ctx.putImageData(workingData, 0, 0);
 
     const blob = await canvasToWebpBlob(canvas, 0.95);
-    if (!blob) return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
-    return URL.createObjectURL(blob);
+    if (!blob) return { url: fallbackUrl, fetchLogs, fallbackUrl };
+    return { url: URL.createObjectURL(blob), fetchLogs };
   } catch (error) {
     console.error('Failed to composite product preview', error);
-    const { assets } = options;
-    return assets.thumbUrl ?? assets.beautyUrl ?? assets.beautyFgUrl ?? null;
+    return { url: fallbackUrl, fetchLogs, error: (error as Error).message, fallbackUrl };
   }
 }
 
