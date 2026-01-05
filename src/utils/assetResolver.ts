@@ -4,6 +4,7 @@ import {
   AVAILABLE_SHADES,
   AVAILABLE_STATES,
   CDN_ROOT,
+  FRAME_SUFFIX,
   DEFAULT_CAMERA,
   DEFAULT_STATE
 } from '../config';
@@ -37,6 +38,9 @@ const REQUIRED_COMMON: Array<'beauty_512' | 'mask_base' | 'mask_shade' | 'mask_a
   'mask_adapter',
   'mask_guard'
 ];
+
+const FRAME_SUFFIXES = FRAME_SUFFIX ? [FRAME_SUFFIX] : ['0001'];
+const PREFERRED_FRAME_SUFFIX = FRAME_SUFFIX || '';
 
 type AssetFilename =
   | 'beauty'
@@ -78,7 +82,7 @@ function buildAssetPath(basePath: string, filename: AssetFilename, extension: 'w
 
 function buildAssetCandidates(basePath: string, filename: AssetFilename, includeFrameSuffix = true) {
   const extensions: Array<'webp' | 'png'> = ['webp', 'png'];
-  const frameSuffixes = includeFrameSuffix ? ['0001'] : [];
+  const frameSuffixes = includeFrameSuffix ? FRAME_SUFFIXES : [];
 
   const unsuffixed = extensions.map((extension) => buildAssetPath(basePath, filename, extension));
   const frameCandidates = frameSuffixes.flatMap((frameSuffix) =>
@@ -89,6 +93,9 @@ function buildAssetCandidates(basePath: string, filename: AssetFilename, include
 }
 
 function pickPrimaryAssetCandidate(basePath: string, filename: AssetFilename) {
+  if (PREFERRED_FRAME_SUFFIX) {
+    return buildAssetPath(basePath, filename, 'webp', PREFERRED_FRAME_SUFFIX);
+  }
   return buildAssetPath(basePath, filename, 'webp');
 }
 
