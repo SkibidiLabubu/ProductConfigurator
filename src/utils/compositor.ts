@@ -176,9 +176,13 @@ function applyEmission(target: ImageData, emission: ImageData, intensity: number
   }
 }
 
-const pickBestFallbackAsset = (assets: AssetUrls) => {
+function pickBestFallbackAsset(assets: AssetUrls) {
   return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
-};
+}
+
+function pickBestFallbackAsset(assets: AssetUrls) {
+  return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
+}
 
 export const compositeProduct = async (options: {
   assets: AssetUrls;
@@ -191,7 +195,7 @@ export const compositeProduct = async (options: {
   colorStrength?: number;
   aoIntensity?: number;
   emissionIntensity?: number;
-}): Promise<CompositeResult> => {
+}): Promise<CompositeResult> {
   const fetchLogs: FetchLog[] = [];
   const fallbackUrl = pickBestFallbackAsset(options.assets);
   try {
@@ -201,7 +205,7 @@ export const compositeProduct = async (options: {
     const emissionIntensity = options.emissionIntensity ?? 1;
 
     const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-    const baseBitmapPromise: Promise<ImageBitmap | null> = (async () => {
+    const baseBitmapPromise = async () => {
       const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
       const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
 
@@ -209,9 +213,8 @@ export const compositeProduct = async (options: {
       if (primaryBitmap) return primaryBitmap;
       return fetchBitmap(secondary, 'base-fallback', fetchLogs);
     })();
-    const backgroundPromise: Promise<ImageBitmap | null> = variant === 'separateBackground'
-      ? fetchBitmap(assets.backgroundUrl, 'background', fetchLogs)
-      : Promise.resolve(null);
+    const backgroundPromise =
+      variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl, 'background', fetchLogs) : null;
 
     const [baseBitmap, backgroundBitmap] = await Promise.all([baseBitmapPromise, backgroundPromise]);
     if (!baseBitmap) return { url: fallbackUrl, fetchLogs, fallbackUrl };
