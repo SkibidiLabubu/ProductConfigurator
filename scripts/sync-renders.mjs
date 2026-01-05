@@ -8,7 +8,7 @@ const exec = promisify(execCallback);
 const sourceDir = resolve('renders');
 const targetDir = resolve('public', 'renders');
 const preserveFiles = ['README.md', '.gitkeep'];
-const sampleRelativePath = join('base_01', 'shade_01', 'CAM_01', 'off', 'beauty_fg.webp');
+const sampleRelativePath = join('base_01', 'shade_01', 'CAM_01', 'on', 'beauty_fg.webp');
 const minFileThreshold = 20;
 
 async function logDirectoryListing(dir) {
