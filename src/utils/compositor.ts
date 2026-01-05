@@ -117,9 +117,7 @@ const dimensionWarningLogged = new Set<string>();
 
 function bitmapToImageData(bitmap: ImageBitmap, width: number, height: number, url?: string) {
   if ((bitmap.width !== width || bitmap.height !== height) && url && !dimensionWarningLogged.has(url)) {
-    console.warn(
-      `Bitmap dimensions differ from base (${bitmap.width}x${bitmap.height} vs ${width}x${height}) for ${url}`
-    );
+    console.warn(`Bitmap dimensions differ from base (${bitmap.width}x${bitmap.height} vs ${width}x${height}) for ${url}`);
     dimensionWarningLogged.add(url);
   }
 
@@ -139,6 +137,7 @@ function applyTint(
   for (let i = 0; i < data.length; i += 4) {
     const maskValue = ((maskData[i] + maskData[i + 1] + maskData[i + 2]) / 3) * (maskData[i + 3] / 255) / 255;
     if (maskValue <= 0) continue;
+
     const lum = (0.2126 * base[i] + 0.7152 * base[i + 1] + 0.0722 * base[i + 2]) / 255;
     const tintedR = rgb[0] * lum * 255;
     const tintedG = rgb[1] * lum * 255;
@@ -180,10 +179,6 @@ function pickBestFallbackAsset(assets: AssetUrls) {
   return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
 }
 
-function pickBestFallbackAsset(assets: AssetUrls) {
-  return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
-}
-
 export const compositeProduct = async (options: {
   assets: AssetUrls;
   colors: {
@@ -195,9 +190,10 @@ export const compositeProduct = async (options: {
   colorStrength?: number;
   aoIntensity?: number;
   emissionIntensity?: number;
-}): Promise<CompositeResult> {
+}): Promise<CompositeResult> => {
   const fetchLogs: FetchLog[] = [];
   const fallbackUrl = pickBestFallbackAsset(options.assets);
+
   try {
     const { assets, colors } = options;
     const colorStrength = options.colorStrength ?? 0.85;
@@ -205,7 +201,8 @@ export const compositeProduct = async (options: {
     const emissionIntensity = options.emissionIntensity ?? 1;
 
     const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-    const baseBitmapPromise = async () => {
+
+    const baseBitmapPromise = (async () => {
       const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
       const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
 
@@ -213,6 +210,7 @@ export const compositeProduct = async (options: {
       if (primaryBitmap) return primaryBitmap;
       return fetchBitmap(secondary, 'base-fallback', fetchLogs);
     })();
+
     const backgroundPromise =
       variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl, 'background', fetchLogs) : null;
 
@@ -243,7 +241,7 @@ export const compositeProduct = async (options: {
         (async () => {
           const maskBitmap = await fetchBitmap(maskUrl, stage, fetchLogs);
           if (!maskBitmap) return;
-          const maskData = await bitmapToImageData(maskBitmap, width, height, maskUrl);
+          const maskData = bitmapToImageData(maskBitmap, width, height, maskUrl);
           applyTint(workingData, baseData, maskData, rgb, colorStrength);
         })()
       );
@@ -259,7 +257,7 @@ export const compositeProduct = async (options: {
     if (assets.aoUrl) {
       const aoBitmap = await fetchBitmap(assets.aoUrl, 'ao', fetchLogs);
       if (aoBitmap) {
-        const aoData = await bitmapToImageData(aoBitmap, width, height, assets.aoUrl);
+        const aoData = bitmapToImageData(aoBitmap, width, height, assets.aoUrl);
         applyAo(workingData, aoData, aoIntensity);
       }
     }
@@ -267,7 +265,7 @@ export const compositeProduct = async (options: {
     if (assets.emissionUrl) {
       const emissionBitmap = await fetchBitmap(assets.emissionUrl, 'emission', fetchLogs);
       if (emissionBitmap) {
-        const emissionData = await bitmapToImageData(emissionBitmap, width, height, assets.emissionUrl);
+        const emissionData = bitmapToImageData(emissionBitmap, width, height, assets.emissionUrl);
         applyEmission(workingData, emissionData, emissionIntensity);
       }
     }
