@@ -184,7 +184,7 @@ function pickBestFallbackAsset(assets: AssetUrls) {
   return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
 }
 
-export async function compositeProduct(options: {
+export const compositeProduct = async (options: {
   assets: AssetUrls;
   colors: {
     base?: ColorOption | null;
@@ -281,7 +281,7 @@ export async function compositeProduct(options: {
     console.error('Failed to composite product preview', error);
     return { url: fallbackUrl, fetchLogs, error: (error as Error).message, fallbackUrl };
   }
-}
+};
 
 export function revokeObjectUrl(url?: string | null) {
   if (!url || !url.startsWith('blob:')) return;
