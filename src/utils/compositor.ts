@@ -117,9 +117,7 @@ const dimensionWarningLogged = new Set<string>();
 
 function bitmapToImageData(bitmap: ImageBitmap, width: number, height: number, url?: string) {
   if ((bitmap.width !== width || bitmap.height !== height) && url && !dimensionWarningLogged.has(url)) {
-    console.warn(
-      `Bitmap dimensions differ from base (${bitmap.width}x${bitmap.height} vs ${width}x${height}) for ${url}`
-    );
+    console.warn(`Bitmap dimensions differ from base (${bitmap.width}x${bitmap.height} vs ${width}x${height}) for ${url}`);
     dimensionWarningLogged.add(url);
   }
 
@@ -139,6 +137,7 @@ function applyTint(
   for (let i = 0; i < data.length; i += 4) {
     const maskValue = ((maskData[i] + maskData[i + 1] + maskData[i + 2]) / 3) * (maskData[i + 3] / 255) / 255;
     if (maskValue <= 0) continue;
+
     const lum = (0.2126 * base[i] + 0.7152 * base[i + 1] + 0.0722 * base[i + 2]) / 255;
     const tintedR = rgb[0] * lum * 255;
     const tintedG = rgb[1] * lum * 255;
@@ -277,6 +276,7 @@ export const compositeProduct = async (options: {
     if (!blob) return { url: fallbackUrl, fetchLogs, fallbackUrl };
     return { url: URL.createObjectURL(blob), fetchLogs };
   } catch (error) {
+    console.error('Failed to composite product preview', error);
     return { url: fallbackUrl, fetchLogs, error: (error as Error).message, fallbackUrl };
   }
 };
