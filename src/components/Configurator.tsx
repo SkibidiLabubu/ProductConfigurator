@@ -13,9 +13,10 @@ import {
 } from '../utils/assetResolver';
 import { colorsForPart, findColorById, normalizeColorSelection } from '../colors';
 import { preloadAssetSet } from '../utils/preload';
-import { compositeProduct, revokeObjectUrl } from '../utils/compositor';
+import { compositeProduct, revokeObjectUrl, type FetchLog } from '../utils/compositor';
 import type {
   AssetAvailability,
+  AssetUrls,
   AvailabilityMap,
   BaseKey,
   CameraKey,
@@ -45,6 +46,19 @@ interface CartPayload {
 function formatExpectedFile(file: ExpectedAssetFile) {
   const alternatives = file.alternatives?.length ? ` (or ${file.alternatives.join(', ')})` : '';
   return `${file.path}${alternatives}`;
+}
+
+function configsEqual(a: Configuration, b: Configuration) {
+  return (
+    a.base === b.base &&
+    a.shade === b.shade &&
+    a.camera === b.camera &&
+    a.state === b.state &&
+    a.lampColor === b.lampColor &&
+    a.baseColor === b.baseColor &&
+    a.adapterColor === b.adapterColor &&
+    a.guardColor === b.guardColor
+  );
 }
 
 function DebugPanel({ probes }: { probes?: AssetAvailability['probes'] }) {
@@ -86,6 +100,92 @@ function DebugPanel({ probes }: { probes?: AssetAvailability['probes'] }) {
               </ul>
             </div>
           ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function PreviewDiagnostics({
+  resolved,
+  fetchLogs,
+  compositeError,
+  fallbackUrl,
+  previewUrl
+}: {
+  resolved: AssetUrls | null;
+  fetchLogs: FetchLog[];
+  compositeError: string | null;
+  fallbackUrl: string | null;
+  previewUrl: string | null;
+}) {
+  if (!resolved) return null;
+
+  const rows: Array<{ label: string; value?: string }> = [
+    { label: 'beauty', value: resolved.beautyUrl },
+    { label: 'beauty_fg', value: resolved.beautyFgUrl },
+    { label: 'background', value: resolved.backgroundUrl },
+    { label: 'mask_base', value: resolved.maskBaseUrl },
+    { label: 'mask_shade', value: resolved.maskShadeUrl },
+    { label: 'mask_adapter', value: resolved.maskAdapterUrl },
+    { label: 'mask_guard', value: resolved.maskGuardUrl },
+    { label: 'ao', value: resolved.aoUrl },
+    { label: 'emission', value: resolved.emissionUrl }
+  ];
+
+  return (
+    <div
+      style={{
+        marginTop: '0.75rem',
+        padding: '0.75rem',
+        border: '1px dashed #cbd5e1',
+        borderRadius: 8,
+        background: '#f8fafc'
+      }}
+    >
+      <details>
+        <summary style={{ cursor: 'pointer', fontWeight: 600, color: '#0f172a' }}>Preview diagnostics</summary>
+        <div style={{ marginTop: '0.5rem', display: 'grid', gap: '0.35rem' }}>
+          <div style={{ padding: '0.4rem', borderRadius: 6, background: '#e2e8f0' }}>
+            <div style={{ fontWeight: 600, color: '#0f172a' }}>Resolved asset URLs</div>
+            <ul style={{ margin: '0.35rem 0 0 0.75rem', padding: 0, listStyle: 'disc' }}>
+              {rows.map((row) => (
+                <li key={row.label} style={{ color: '#0f172a', fontSize: '0.85rem' }}>
+                  <strong>{row.label}:</strong> <code>{row.value ?? '—'}</code>
+                </li>
+              ))}
+            </ul>
+            <div style={{ fontSize: '0.85rem', marginTop: '0.35rem', color: '#0f172a' }}>
+              Current preview: <code>{previewUrl ?? '—'}</code>
+            </div>
+            {fallbackUrl && (
+              <div style={{ fontSize: '0.85rem', marginTop: '0.35rem', color: '#b45309' }}>
+                Fallback preview in use: <code>{fallbackUrl}</code>
+              </div>
+            )}
+            {compositeError && (
+              <div style={{ fontSize: '0.85rem', marginTop: '0.35rem', color: '#b91c1c' }}>
+                Composite error: {compositeError}
+              </div>
+            )}
+          </div>
+
+          {fetchLogs.length > 0 && (
+            <div style={{ padding: '0.4rem', borderRadius: 6, background: '#e2e8f0' }}>
+              <div style={{ fontWeight: 600, color: '#0f172a' }}>Compositor fetches</div>
+              <ul style={{ margin: '0.35rem 0 0 0.75rem', padding: 0, listStyle: 'disc' }}>
+                {fetchLogs.map((log, index) => (
+                  <li key={`${log.url}-${index}`} style={{ color: '#0f172a', fontSize: '0.85rem' }}>
+                    <code>[{log.stage}] {log.url}</code> —{' '}
+                    {log.status ? `status ${log.status}` : 'no response'}
+                    {log.contentType ? `, ${log.contentType}` : ''}
+                    {log.error ? `, error: ${log.error}` : log.ok ? ', ok' : ', failed'}
+                    {log.fromCache ? ' (cache)' : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </details>
     </div>
@@ -184,12 +284,16 @@ export default function Configurator() {
   const [configuration, setConfiguration] = useState<Configuration>(() => pickFirstAvailableConfiguration(buildStaticManifest()));
   const [colorTab, setColorTab] = useState<ColorPart>('lamp');
   const [currentAsset, setCurrentAsset] = useState<AssetAvailability | null>(null);
+  const [resolvedAssets, setResolvedAssets] = useState<AssetUrls | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState(true);
   const [renderError, setRenderError] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [fetchLogs, setFetchLogs] = useState<FetchLog[]>([]);
+  const [compositeError, setCompositeError] = useState<string | null>(null);
+  const [fallbackPreview, setFallbackPreview] = useState<string | null>(null);
   const [probeWasConfident, setProbeWasConfident] = useState<boolean>(true);
   const [isShopifyHost] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -207,14 +311,32 @@ export default function Configurator() {
 
   useEffect(() => {
     let cancelled = false;
+    (async () => {
+      const dynamicAvailability = await buildAvailabilityMap({ states: ['on', 'off'] });
+      if (cancelled) return;
+      setAvailability(dynamicAvailability);
+      setConfiguration((prev) => coerceConfig(dynamicAvailability, prev));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const nextConfig = coerceConfig(availability, configuration);
-    setConfiguration(nextConfig);
+    if (!configsEqual(configuration, nextConfig)) {
+      setConfiguration(nextConfig);
+      return undefined;
+    }
     setStatusMessage(null);
     setIsLoadingImage(true);
     (async () => {
       const availabilityForSelection = await probeAvailability(nextConfig);
       if (cancelled) return;
       const resolvedAssets = resolveAssetUrls(nextConfig);
+      setResolvedAssets(resolvedAssets);
       const missingAssets = availabilityForSelection.missingFiles ?? [];
       const frameOnlyAssets = availabilityForSelection.frameOnlyFiles ?? [];
       const messageParts = [] as string[];
@@ -255,6 +377,9 @@ export default function Configurator() {
     if (!currentAsset) {
       setIsLoadingImage(false);
       setRenderError(false);
+      setFetchLogs([]);
+      setCompositeError(null);
+      setFallbackPreview(null);
       return undefined;
     }
     const baseColor = findColorById(configuration.baseColor);
@@ -264,9 +389,12 @@ export default function Configurator() {
 
     setIsLoadingImage(true);
     setRenderError(false);
+    setFetchLogs([]);
+    setCompositeError(null);
+    setFallbackPreview(null);
     (async () => {
       try {
-        const url = await compositeProduct({
+        const result = await compositeProduct({
           assets: currentAsset,
           colors: {
             base: baseColor,
@@ -275,6 +403,17 @@ export default function Configurator() {
             guard: guardColor
           }
         });
+        const url = result.url;
+        if (cancelled) {
+          revokeObjectUrl(url);
+          return;
+        }
+        setFetchLogs(result.fetchLogs);
+        setCompositeError(result.error ?? null);
+        setFallbackPreview(result.fallbackUrl ?? null);
+        if (result.error) {
+          setRenderError(true);
+        }
         if (cancelled) {
           revokeObjectUrl(url);
           return;
@@ -291,7 +430,7 @@ export default function Configurator() {
         setRenderError(true);
         setPreviewUrl((prev) => {
           revokeObjectUrl(prev);
-          return currentAsset?.thumbUrl ?? currentAsset?.beautyUrl ?? currentAsset?.beautyFgUrl ?? null;
+          return currentAsset?.beautyFgUrl ?? currentAsset?.beautyUrl ?? currentAsset?.thumbUrl ?? null;
         });
       } finally {
         setIsLoadingImage(false);
@@ -398,6 +537,13 @@ export default function Configurator() {
   const frameOnlyFiles = currentAsset?.frameOnlyFiles ?? [];
 
   const onImageLoad = () => setIsLoadingImage(false);
+  const onImageError = () => {
+    setRenderError(true);
+    setPreviewUrl((prev) => {
+      revokeObjectUrl(prev);
+      return fallbackPreview ?? currentAsset?.beautyFgUrl ?? currentAsset?.beautyUrl ?? currentAsset?.thumbUrl ?? null;
+    });
+  };
 
   useEffect(() => {
     setIsLoadingImage(true);
@@ -512,18 +658,22 @@ export default function Configurator() {
                 className="preview-image"
                 style={{ opacity: isLoadingImage ? 0 : 1, transition: 'opacity 240ms ease' }}
                 onLoad={onImageLoad}
+                onError={onImageError}
               />
             )}
             {isLoadingImage && <div className="preview-skeleton" />}
-            {renderError && (
-              <div className="preview-unavailable" style={{ textAlign: 'left' }}>
-                <p style={{ marginTop: 0, marginBottom: '0.35rem' }}>
-                  Missing render assets for this combination or failed to load preview.
-                </p>
-                {availabilityMessage && <p style={{ margin: 0, color: '#b91c1c' }}>{availabilityMessage}</p>}
-                {!!missingFiles.length && (
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <div style={{ fontWeight: 600 }}>Expected filenames:</div>
+          {renderError && (
+            <div className="preview-unavailable" style={{ textAlign: 'left' }}>
+              <p style={{ marginTop: 0, marginBottom: '0.35rem' }}>
+                Missing render assets for this combination or failed to load preview.
+              </p>
+              {availabilityMessage && <p style={{ margin: 0, color: '#b91c1c' }}>{availabilityMessage}</p>}
+              {compositeError && (
+                <p style={{ margin: 0, color: '#b91c1c' }}>Compositor error: {compositeError}</p>
+              )}
+              {!!missingFiles.length && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ fontWeight: 600 }}>Expected filenames:</div>
                     <ul style={{ margin: '0.35rem 0 0 1.1rem', padding: 0 }}>
                       {missingFiles.map((file) => (
                         <li key={file.path} style={{ fontSize: '0.9rem' }}>
@@ -541,6 +691,13 @@ export default function Configurator() {
               </div>
             )}
           </div>
+          <PreviewDiagnostics
+            resolved={resolvedAssets}
+            fetchLogs={fetchLogs}
+            compositeError={compositeError}
+            fallbackUrl={fallbackPreview}
+            previewUrl={previewUrl}
+          />
           {!probeWasConfident && <DebugPanel probes={currentAsset?.probes} />}
           <p style={{ marginTop: '0.75rem', color: '#475569' }}>
             Assets worden resolved via vaste paden en geverifieerd met lichte GET-requests. UI probeert alsnog te renderen als
