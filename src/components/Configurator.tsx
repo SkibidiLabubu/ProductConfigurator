@@ -311,6 +311,20 @@ export default function Configurator() {
 
   useEffect(() => {
     let cancelled = false;
+    (async () => {
+      const dynamicAvailability = await buildAvailabilityMap({ states: ['on', 'off'] });
+      if (cancelled) return;
+      setAvailability(dynamicAvailability);
+      setConfiguration((prev) => coerceConfig(dynamicAvailability, prev));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const nextConfig = coerceConfig(availability, configuration);
     if (!configsEqual(configuration, nextConfig)) {
       setConfiguration(nextConfig);

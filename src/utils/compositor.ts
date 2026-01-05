@@ -113,6 +113,19 @@ function getImageData(bitmap: ImageBitmap, width: number, height: number) {
   return ctx.getImageData(0, 0, width, height);
 }
 
+const dimensionWarningLogged = new Set<string>();
+
+function bitmapToImageData(bitmap: ImageBitmap, width: number, height: number, url?: string) {
+  if ((bitmap.width !== width || bitmap.height !== height) && url && !dimensionWarningLogged.has(url)) {
+    console.warn(
+      `Bitmap dimensions differ from base (${bitmap.width}x${bitmap.height} vs ${width}x${height}) for ${url}`
+    );
+    dimensionWarningLogged.add(url);
+  }
+
+  return getImageData(bitmap, width, height);
+}
+
 function applyTint(
   target: ImageData,
   source: ImageData,
@@ -163,8 +176,8 @@ function applyEmission(target: ImageData, emission: ImageData, intensity: number
   }
 }
 
-async function bitmapToImageData(bitmap: ImageBitmap) {
-  return getImageData(bitmap, bitmap.width, bitmap.height);
+function pickBestFallbackAsset(assets: AssetUrls) {
+  return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
 }
 
 function pickBestFallbackAsset(assets: AssetUrls) {
@@ -230,7 +243,7 @@ export async function compositeProduct(options: {
         (async () => {
           const maskBitmap = await fetchBitmap(maskUrl, stage, fetchLogs);
           if (!maskBitmap) return;
-          const maskData = await bitmapToImageData(maskBitmap);
+          const maskData = await bitmapToImageData(maskBitmap, width, height, maskUrl);
           applyTint(workingData, baseData, maskData, rgb, colorStrength);
         })()
       );
@@ -246,7 +259,7 @@ export async function compositeProduct(options: {
     if (assets.aoUrl) {
       const aoBitmap = await fetchBitmap(assets.aoUrl, 'ao', fetchLogs);
       if (aoBitmap) {
-        const aoData = await bitmapToImageData(aoBitmap);
+        const aoData = await bitmapToImageData(aoBitmap, width, height, assets.aoUrl);
         applyAo(workingData, aoData, aoIntensity);
       }
     }
@@ -254,7 +267,7 @@ export async function compositeProduct(options: {
     if (assets.emissionUrl) {
       const emissionBitmap = await fetchBitmap(assets.emissionUrl, 'emission', fetchLogs);
       if (emissionBitmap) {
-        const emissionData = await bitmapToImageData(emissionBitmap);
+        const emissionData = await bitmapToImageData(emissionBitmap, width, height, assets.emissionUrl);
         applyEmission(workingData, emissionData, emissionIntensity);
       }
     }
