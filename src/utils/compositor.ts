@@ -176,9 +176,13 @@ function applyEmission(target: ImageData, emission: ImageData, intensity: number
   }
 }
 
-const pickBestFallbackAsset = (assets: AssetUrls) => {
+function pickBestFallbackAsset(assets: AssetUrls) {
   return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
-};
+}
+
+function pickBestFallbackAsset(assets: AssetUrls) {
+  return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
+}
 
 export const compositeProduct = async (options: {
   assets: AssetUrls;
@@ -191,7 +195,7 @@ export const compositeProduct = async (options: {
   colorStrength?: number;
   aoIntensity?: number;
   emissionIntensity?: number;
-}): Promise<CompositeResult> => {
+}): Promise<CompositeResult> {
   const fetchLogs: FetchLog[] = [];
   const fallbackUrl = pickBestFallbackAsset(options.assets);
   try {
@@ -201,7 +205,7 @@ export const compositeProduct = async (options: {
     const emissionIntensity = options.emissionIntensity ?? 1;
 
     const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-    const baseBitmapPromise = (async () => {
+    const baseBitmapPromise = async () => {
       const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
       const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
 
