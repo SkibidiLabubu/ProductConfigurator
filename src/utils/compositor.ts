@@ -176,9 +176,13 @@ function applyEmission(target: ImageData, emission: ImageData, intensity: number
   }
 }
 
-const pickBestFallbackAsset = (assets: AssetUrls) => {
+function pickBestFallbackAsset(assets: AssetUrls) {
   return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
-};
+}
+
+function pickBestFallbackAsset(assets: AssetUrls) {
+  return assets.beautyFgUrl ?? assets.beautyUrl ?? assets.thumbUrl ?? null;
+}
 
 export const compositeProduct = async (options: {
   assets: AssetUrls;
@@ -191,7 +195,7 @@ export const compositeProduct = async (options: {
   colorStrength?: number;
   aoIntensity?: number;
   emissionIntensity?: number;
-}): Promise<CompositeResult> => {
+}): Promise<CompositeResult> {
   const fetchLogs: FetchLog[] = [];
   const fallbackUrl = pickBestFallbackAsset(options.assets);
   try {
@@ -201,23 +205,18 @@ export const compositeProduct = async (options: {
     const emissionIntensity = options.emissionIntensity ?? 1;
 
     const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-
-    const loadBaseBitmap = async (): Promise<ImageBitmap | null> => {
+    const baseBitmapPromise = async () => {
       const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
       const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
 
       const primaryBitmap = await fetchBitmap(primary, 'base', fetchLogs);
       if (primaryBitmap) return primaryBitmap;
       return fetchBitmap(secondary, 'base-fallback', fetchLogs);
-    };
+    })();
+    const backgroundPromise =
+      variant === 'separateBackground' ? fetchBitmap(assets.backgroundUrl, 'background', fetchLogs) : null;
 
-    const loadBackgroundBitmap = (): Promise<ImageBitmap | null> => {
-      return variant === 'separateBackground'
-        ? fetchBitmap(assets.backgroundUrl, 'background', fetchLogs)
-        : Promise.resolve(null);
-    };
-
-    const [baseBitmap, backgroundBitmap] = await Promise.all([loadBaseBitmap(), loadBackgroundBitmap()]);
+    const [baseBitmap, backgroundBitmap] = await Promise.all([baseBitmapPromise, backgroundPromise]);
     if (!baseBitmap) return { url: fallbackUrl, fetchLogs, fallbackUrl };
 
     const width = baseBitmap.width;
