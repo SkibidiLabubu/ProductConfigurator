@@ -205,7 +205,7 @@ export const compositeProduct = async (options: {
     const emissionIntensity = options.emissionIntensity ?? 1;
 
     const variant = assets.variant ?? (assets.beautyFgUrl ? 'separateBackground' : 'embeddedBackground');
-    const baseBitmapPromise = (async () => {
+    const baseBitmapPromise = async () => {
       const primary = variant === 'separateBackground' ? assets.beautyFgUrl : assets.beautyUrl;
       const secondary = variant === 'separateBackground' ? assets.beautyUrl : assets.beautyFgUrl;
 
