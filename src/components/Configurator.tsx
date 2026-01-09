@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ColorSwatchGrid from './ColorSwatchGrid';
+import ContourCarousel from './ContourCarousel';
 import {
   buildAvailabilityMap,
   buildStaticManifest,
@@ -218,41 +219,6 @@ function coerceConfig(map: AvailabilityMap, current: Configuration): Configurati
   };
 }
 
-function SelectorGrid<T extends string>({
-  options,
-  selected,
-  onSelect,
-  thumbFor,
-  labelFor
-}: {
-  options: T[];
-  selected: T;
-  onSelect: (value: T) => void;
-  thumbFor: (value: T) => string | undefined;
-  labelFor: (value: T) => string;
-}) {
-  return (
-    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))' }}>
-      {options.map((value) => {
-        const thumb = thumbFor(value) ?? '';
-        return (
-          <button
-            key={value}
-            className={`selector-tile ${selected === value ? 'selected' : ''}`}
-            onClick={() => onSelect(value)}
-            type="button"
-          >
-            <img src={thumb} alt={labelFor(value)} className="thumb" loading="lazy" />
-            <div className="selector-label">
-              <span>{labelFor(value)}</span>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function SegmentedControl({
   options,
   value,
@@ -452,35 +418,6 @@ export default function Configurator() {
     );
   };
 
-  const baseThumbnail = (base: BaseKey) => {
-    const shades = availability.bases[base]?.shades ?? {};
-    const firstShade = (Object.keys(shades) as ShadeKey[])[0];
-    const firstCamera = firstShade ? (Object.keys(shades[firstShade] ?? {}) as CameraKey[])[0] : undefined;
-    if (!firstShade || !firstCamera) return undefined;
-    const states = availability.bases[base]?.shades?.[firstShade]?.[firstCamera]?.states ?? EMPTY_STATE_MAP;
-    const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
-    const asset = firstState ? states[firstState] : undefined;
-    const fallbackState = firstState ?? DEFAULT_STATE;
-    return (
-      asset?.thumbUrl ??
-      resolveAssetUrls({ ...configuration, base, shade: firstShade, camera: firstCamera, state: fallbackState }).thumbUrl
-    );
-  };
-
-  const shadeThumbnail = (shade: ShadeKey) => {
-    const cameras = availability.bases[configuration.base]?.shades?.[shade] ?? {};
-    const firstCamera = (Object.keys(cameras) as CameraKey[])[0];
-    if (!firstCamera) return undefined;
-    const states = availability.bases[configuration.base]?.shades?.[shade]?.[firstCamera]?.states ?? EMPTY_STATE_MAP;
-    const firstState = (Object.keys(states) as StateKey[]).find((state) => states[state]);
-    const asset = firstState ? states[firstState] : undefined;
-    const fallbackState = firstState ?? DEFAULT_STATE;
-    return (
-      asset?.thumbUrl ??
-      resolveAssetUrls({ ...configuration, shade, camera: firstCamera, state: fallbackState }).thumbUrl
-    );
-  };
-
   const handleAddToCart = async () => {
     if (!currentAsset) return;
     if (!isShopifyHost) {
@@ -535,6 +472,18 @@ export default function Configurator() {
   const selectedColorId = configuration[COLOR_KEYS[colorTab]];
   const missingFiles = currentAsset?.missingFiles ?? [];
   const frameOnlyFiles = currentAsset?.frameOnlyFiles ?? [];
+  const baseLabel = (base: BaseKey) => base.replace('base_', 'Base ');
+  const shadeLabel = (shade: ShadeKey) => shade.replace('shade_', 'Shade ');
+  const baseItems = useMemo(
+    () => baseOptions.map((base) => ({ id: base, name: baseLabel(base) })),
+    [baseOptions]
+  );
+  const shadeItems = useMemo(
+    () => shadeOptions.map((shade) => ({ id: shade, name: shadeLabel(shade) })),
+    [shadeOptions]
+  );
+  const baseIndex = baseOptions.indexOf(configuration.base);
+  const shadeIndex = shadeOptions.indexOf(configuration.shade);
 
   const onImageLoad = () => setIsLoadingImage(false);
   const onImageError = () => {
@@ -561,32 +510,8 @@ export default function Configurator() {
         <span className="badge">Version {CONFIGURATOR_VERSION}</span>
       </div>
 
-      <div className="layout" style={{ padding: 0 }}>
-        <div>
-          <div className="section">
-            <h3>Base</h3>
-            <p>Kies een basis. Alleen combinaties met assets worden getoond.</p>
-            <SelectorGrid<BaseKey>
-              options={baseOptions}
-              selected={configuration.base}
-              onSelect={(base) => setConfiguration((prev) => coerceConfig(availability, { ...prev, base }))}
-              thumbFor={baseThumbnail}
-              labelFor={(base) => base.replace('base_', 'Base ')}
-            />
-          </div>
-
-          <div className="section">
-            <h3>Shade</h3>
-            <p>Beschikbare kappen per gekozen base.</p>
-            <SelectorGrid<ShadeKey>
-              options={shadeOptions}
-              selected={configuration.shade}
-              onSelect={(shade) => setConfiguration((prev) => coerceConfig(availability, { ...prev, shade }))}
-              thumbFor={shadeThumbnail}
-              labelFor={(shade) => shade.replace('shade_', 'Shade ')}
-            />
-          </div>
-
+      <div className="configurator-layout" style={{ padding: 0 }}>
+        <aside className="configurator-controls">
           <div className="section">
             <div className="section-heading">
               <div>
@@ -646,50 +571,123 @@ export default function Configurator() {
             {statusMessage && <span style={{ color: '#0f172a', fontWeight: 600 }}>{statusMessage}</span>}
             {availabilityMessage && <span style={{ color: '#b91c1c', fontWeight: 600 }}>{availabilityMessage}</span>}
           </div>
-        </div>
+        </aside>
 
-        <div>
-          <div className="preview-shell">
-            {previewUrl && (
-              <img
-                key={previewUrl}
-                src={previewUrl}
-                alt={`Preview ${configuration.base} ${configuration.shade}`}
-                className="preview-image"
-                style={{ opacity: isLoadingImage ? 0 : 1, transition: 'opacity 240ms ease' }}
-                onLoad={onImageLoad}
-                onError={onImageError}
-              />
-            )}
-            {isLoadingImage && <div className="preview-skeleton" />}
-          {renderError && (
-            <div className="preview-unavailable" style={{ textAlign: 'left' }}>
-              <p style={{ marginTop: 0, marginBottom: '0.35rem' }}>
-                Missing render assets for this combination or failed to load preview.
-              </p>
-              {availabilityMessage && <p style={{ margin: 0, color: '#b91c1c' }}>{availabilityMessage}</p>}
-              {compositeError && (
-                <p style={{ margin: 0, color: '#b91c1c' }}>Compositor error: {compositeError}</p>
+        <section className="configurator-preview">
+          <div className="preview-wrapper">
+            <div className="preview-shell">
+              {previewUrl && (
+                <img
+                  key={previewUrl}
+                  src={previewUrl}
+                  alt={`Preview ${configuration.base} ${configuration.shade}`}
+                  className="preview-image"
+                  style={{ opacity: isLoadingImage ? 0 : 1, transition: 'opacity 240ms ease' }}
+                  onLoad={onImageLoad}
+                  onError={onImageError}
+                />
               )}
-              {!!missingFiles.length && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <div style={{ fontWeight: 600 }}>Expected filenames:</div>
-                    <ul style={{ margin: '0.35rem 0 0 1.1rem', padding: 0 }}>
-                      {missingFiles.map((file) => (
-                        <li key={file.path} style={{ fontSize: '0.9rem' }}>
-                          <code>{formatExpectedFile(file)}</code>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {!!frameOnlyFiles.length && (
-                  <p style={{ marginTop: '0.5rem', color: '#b91c1c' }}>
-                    Frame-suffixed files were detected. Please export unsuffixed versions for deployment.
+              {isLoadingImage && <div className="preview-skeleton" />}
+              {renderError && (
+                <div className="preview-unavailable" style={{ textAlign: 'left' }}>
+                  <p style={{ marginTop: 0, marginBottom: '0.35rem' }}>
+                    Missing render assets for this combination or failed to load preview.
                   </p>
-                )}
-              </div>
-            )}
+                  {availabilityMessage && <p style={{ margin: 0, color: '#b91c1c' }}>{availabilityMessage}</p>}
+                  {compositeError && (
+                    <p style={{ margin: 0, color: '#b91c1c' }}>Compositor error: {compositeError}</p>
+                  )}
+                  {!!missingFiles.length && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <div style={{ fontWeight: 600 }}>Expected filenames:</div>
+                      <ul style={{ margin: '0.35rem 0 0 1.1rem', padding: 0 }}>
+                        {missingFiles.map((file) => (
+                          <li key={file.path} style={{ fontSize: '0.9rem' }}>
+                            <code>{formatExpectedFile(file)}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {!!frameOnlyFiles.length && (
+                    <p style={{ marginTop: '0.5rem', color: '#b91c1c' }}>
+                      Frame-suffixed files were detected. Please export unsuffixed versions for deployment.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="preview-nav-stack">
+            <div className="preview-nav">
+              <button
+                type="button"
+                onClick={() =>
+                  setConfiguration((prev) =>
+                    coerceConfig(availability, { ...prev, base: baseOptions[Math.max(baseIndex - 1, 0)] })
+                  )
+                }
+                disabled={baseIndex <= 0}
+                aria-label="Previous base"
+              >
+                ◀
+              </button>
+              <div className="preview-nav-label">{baseLabel(configuration.base)}</div>
+              <button
+                type="button"
+                onClick={() =>
+                  setConfiguration((prev) =>
+                    coerceConfig(availability, { ...prev, base: baseOptions[Math.min(baseIndex + 1, baseOptions.length - 1)] })
+                  )
+                }
+                disabled={baseIndex === -1 || baseIndex >= baseOptions.length - 1}
+                aria-label="Next base"
+              >
+                ▶
+              </button>
+            </div>
+            <ContourCarousel
+              items={baseItems}
+              activeId={configuration.base}
+              onSelect={(base) => setConfiguration((prev) => coerceConfig(availability, { ...prev, base: base as BaseKey }))}
+              label="Base selection"
+            />
+            <div className="preview-nav">
+              <button
+                type="button"
+                onClick={() =>
+                  setConfiguration((prev) =>
+                    coerceConfig(availability, { ...prev, shade: shadeOptions[Math.max(shadeIndex - 1, 0)] })
+                  )
+                }
+                disabled={shadeIndex <= 0}
+                aria-label="Previous shade"
+              >
+                ◀
+              </button>
+              <div className="preview-nav-label">{shadeLabel(configuration.shade)}</div>
+              <button
+                type="button"
+                onClick={() =>
+                  setConfiguration((prev) =>
+                    coerceConfig(availability, { ...prev, shade: shadeOptions[Math.min(shadeIndex + 1, shadeOptions.length - 1)] })
+                  )
+                }
+                disabled={shadeIndex === -1 || shadeIndex >= shadeOptions.length - 1}
+                aria-label="Next shade"
+              >
+                ▶
+              </button>
+            </div>
+            <ContourCarousel
+              items={shadeItems}
+              activeId={configuration.shade}
+              onSelect={(shade) =>
+                setConfiguration((prev) => coerceConfig(availability, { ...prev, shade: shade as ShadeKey }))
+              }
+              label="Shade selection"
+            />
           </div>
           <PreviewDiagnostics
             resolved={resolvedAssets}
@@ -703,7 +701,7 @@ export default function Configurator() {
             Assets worden resolved via vaste paden en geverifieerd met lichte GET-requests. UI probeert alsnog te renderen als
             probes falen.
           </p>
-        </div>
+        </section>
       </div>
     </div>
   );
